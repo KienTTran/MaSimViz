@@ -38,6 +38,7 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         loaderyml.h loaderyml.cpp
         loaderraster.h loaderraster.cpp
         dataprocessor.h dataprocessor.cpp
+        .gitignore
     )
 # Define target properties for Android with Qt 6 as:
 #    set_property(TARGET MaSimViz APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR
