@@ -23,8 +23,14 @@ public:
     struct StatsData{
         QList<QList<QList<double>>> data;
         QList<QList<double>> median;
-        int min = 0;
-        int max = 0;
+        QList<QList<double>> iqr5;
+        QList<QList<double>> iqr25;
+        QList<QList<double>> iqr75;
+        QList<QList<double>> iqr95;
+        double dataMin = 0;
+        double dataMax = 0;
+        double medianMin = 0;
+        double medianMax = 0;
     };
 
     VizData();

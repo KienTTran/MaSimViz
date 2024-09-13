@@ -147,20 +147,41 @@ void MainWindow::on_bt_process_clicked()
                            QMetaObject::invokeMethod(this, [this]() {
                                qDebug() << "Loading complete!";
                                ui->statusbar->showMessage("Loading database complete!");
-                               enableInputWidgets();
 
                                // Do whatever is needed after loading is complete
                                for (int i = 0; i < vizData->statsData[0].data.size(); i++) {
                                    int lastLoc = vizData->statsData[0].data[i].size();
                                    int lastMonth = vizData->statsData[0].data[i][lastLoc - 1].size();
-                                   qDebug() << "DB: " << dbFileList[i] << " 151 pfpr2to10: " << vizData->statsData[0].data[i][150][150] << " pop: " << vizData->statsData[1].data[i][150][150];
+                                   // qDebug() << "DB: " << dbFileList[i] << " 151 pfpr2to10: " << vizData->statsData[0].data[i][150][150] << " pop: " << vizData->statsData[1].data[i][150][150];
+                                   qDebug() << "DB: " << i << " 151 pfpr2to10: " << vizData->statsData[0].data[i][150][150] << " pop: " << vizData->statsData[1].data[i][150][150];
                                }
 
                                // Dynamically allocate the DataProcessor object
                                dataProcessor = new DataProcessor();
+
+                               dataProcessor->processStatsData(vizData,
+                                                               [this](int progress) {  // Progress callback
+                                                                   QMetaObject::invokeMethod(this, [this, progress]() {
+                                                                       ui->progress_bar->setValue(progress);  // Update the progress bar value
+                                                                       ui->statusbar->showMessage("Calculating IQR ... " + QString::number(progress) + "%");
+                                                                   }, Qt::QueuedConnection);
+                                                               },
+                                                               [this]() {  // Completion callback
+                                                                   QMetaObject::invokeMethod(this, [this]() {
+                                                                       qDebug() << "Calculating IQR complete!";
+                                                                       ui->statusbar->showMessage("Calculating IQR complete!");
+
+                                                                       for(int i = 0; i < vizData->statsData.size(); i++){
+                                                                           qDebug() << "Month 150 5 150: " << vizData->statsData[i].iqr5[150][150];
+                                                                           qDebug() << "Month 150 25 150: " << vizData->statsData[i].iqr25[150][150];
+                                                                           qDebug() << "Month 150 Median 150: " << vizData->statsData[i].median[150][150];
+                                                                           qDebug() << "Month 150 75 150: " << vizData->statsData[i].iqr75[150][150];
+                                                                           qDebug() << "Month 150 95 150: " << vizData->statsData[i].iqr95[150][150];
+                                                                       }
+                                                                   }, Qt::QueuedConnection);
+                                                               });
+
                                enableInputWidgets();
-
-
                            }, Qt::QueuedConnection);
                        });
 }
@@ -169,7 +190,7 @@ void MainWindow::on_bt_process_clicked()
 void MainWindow::on_bt_run_clicked()
 {
     qDebug() << "Median: " << vizData->statsData[0].median.size() << " x " << vizData->statsData[0].median[0].size();
-    qDebug() << "Min: " << vizData->statsData[0].min << " Max: " << vizData->statsData[0].max;
+    qDebug() << "Min: " << vizData->statsData[0].medianMin << " Max: " << vizData->statsData[0].medianMax;
 
     QFutureWatcher<void> *futureWatcher = new QFutureWatcher<void>(this);
 

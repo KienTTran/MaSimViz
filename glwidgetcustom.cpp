@@ -468,7 +468,7 @@ void GLWidgetCustom::updateInstanceDataMedian(VizData *vizData, int month)
         instanceCount++;
 
         // Normalize the value to range [0, 1] based on min and max values
-        float normalizedValue = (static_cast<float>(value) - vizData->statsData[0].min) / (vizData->statsData[0].max - vizData->statsData[0].min);
+        float normalizedValue = (static_cast<float>(value) - vizData->statsData[0].medianMin) / (vizData->statsData[0].medianMax - vizData->statsData[0].medianMin);
 
         // Map normalizedValue to a color, for example from blue (low) to red (high)
         QVector3D color(1.0f - normalizedValue, 0.0f, normalizedValue);
