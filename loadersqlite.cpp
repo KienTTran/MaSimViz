@@ -81,10 +81,10 @@ void LoaderSQLite::loadDBList(const QStringList &dbPathList, const QString locat
         vizData->statsData.append(stats);
     }
 
-    // List of futures to run database queries concurrently
+    // Progress tracking
     QVector<QFuture<void>> futures;
 
-    // Start concurrent tasks using QtConcurrent::run for each database
+    // Launch each database processing task concurrently
     for (int dbIndex = 0; dbIndex < numDatabases; ++dbIndex) {
         QFuture<void> future = QtConcurrent::run([=]() {
             processDatabase(dbPathList[dbIndex], dbIndex, locationID, monthID, columnList, databaseName, vizData);
@@ -92,17 +92,19 @@ void LoaderSQLite::loadDBList(const QStringList &dbPathList, const QString locat
         futures.append(future);
     }
 
-    // Progress tracking and waiting for completion
+    // Poll the progress of the futures periodically
     int progress = 0;
     while (progress < numDatabases) {
         int currentProgress = 0;
+
+        // Check how many futures have finished
         for (auto &future : futures) {
             if (future.isFinished()) {
                 currentProgress++;
             }
         }
 
-        // Update progress only if it changes
+        // If progress has updated, call the progress callback
         if (currentProgress > progress) {
             progress = currentProgress;
             if (progressCallback) {
@@ -111,11 +113,11 @@ void LoaderSQLite::loadDBList(const QStringList &dbPathList, const QString locat
             }
         }
 
-        // Avoid busy-waiting by sleeping for a short interval
-        QThread::msleep(100);
+        // Yield control to avoid blocking the thread
+        QCoreApplication::processEvents(); // Yield to allow the GUI or other tasks to process
     }
 
-    // When all tasks are finished, call the completion callback
+    // Once all tasks are finished, call the completion callback
     if (completionCallback) {
         completionCallback();
     }
