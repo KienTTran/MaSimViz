@@ -1,9 +1,14 @@
 #include "dataprocessor.h"
-#include <algorithm> // For std::nth_element and std::sort
-#include <QtAlgorithms> // For qSort
-#include <QtGlobal> // For qMin, qMax
+#include <QtConcurrent> // For QtConcurrent::run
+#include <QFutureWatcher>
 #include <QVector>
-#include <QtConcurrent> // For QtConcurrent and QFuture
+#include <algorithm>
+#include <limits>
+#include <QtAlgorithms>
+#include <QtGlobal>
+#include <functional> // For std::function
+#include <QDebug> // For logging
+
 #include "vizdata.h"
 
 // Helper function to compute percentiles
@@ -20,121 +25,102 @@ double percentile(QList<double> &values, double percent) {
     return values[f] + (k - f) * (values[c] - values[f]);
 }
 
-// Function to process one StatsData object
-void processSingleStatsData(VizData* vizData, VizData::StatsData& stats, int nDatabases, int nLocations, int nMonths) {
-    // Initialize the dimensions for median, IQR, min, and max
-    stats.median.resize(nMonths);
-    stats.iqr5.resize(nMonths);
-    stats.iqr25.resize(nMonths);
-    stats.iqr75.resize(nMonths);
-    stats.iqr95.resize(nMonths);
-
-    double globalMin = std::numeric_limits<double>::max();
-    double globalMax = std::numeric_limits<double>::lowest();
-    double globalMedianMin = std::numeric_limits<double>::max();
-    double globalMedianMax = std::numeric_limits<double>::lowest();
-
-    // Process each month and each location
-    for (int month = 0; month < nMonths; ++month) {
-        stats.median[month].resize(nLocations);
-        stats.iqr5[month].resize(nLocations);
-        stats.iqr25[month].resize(nLocations);
-        stats.iqr75[month].resize(nLocations);
-        stats.iqr95[month].resize(nLocations);
-
-        for (int loc = 0; loc < nLocations; ++loc) {
-            QList<double> values;
-            for (int db = 0; db < nDatabases; ++db) {
-                values.append(stats.data[db][loc][month]);
-            }
-
-            // Calculate median and IQR
-            stats.median[month][loc] = percentile(values, 50);
-            stats.iqr5[month][loc] = percentile(values, 5);
-            stats.iqr25[month][loc] = percentile(values, 25);
-            stats.iqr75[month][loc] = percentile(values, 75);
-            stats.iqr95[month][loc] = percentile(values, 95);
-
-            // Update global min/max values from data
-            double localMin = *std::min_element(values.begin(), values.end());
-            double localMax = *std::max_element(values.begin(), values.end());
-            globalMin = qMin(globalMin, localMin);
-            globalMax = qMax(globalMax, localMax);
-
-            // Update global min/max values for median
-            globalMedianMin = qMin(globalMedianMin, stats.median[month][loc]);
-            globalMedianMax = qMax(globalMedianMax, stats.median[month][loc]);
-        }
-    }
-
-    // Assign global min/max values to stats
-    stats.dataMin = globalMin;
-    stats.dataMax = globalMax;
-    stats.medianMin = globalMedianMin;
-    stats.medianMax = globalMedianMax;
+// Parallel function to calculate percentiles for a given stat and store it
+void calculatePercentiles(VizData::StatsData& stats, QList<double> values, int month, int loc, double percent, QVector<QVector<double>>& outputVector) {
+    outputVector[month][loc] = percentile(values, percent);  // Assign to double
 }
 
+// Actual work function to run in a separate thread
+void processStatsDataWorker(VizData* vizData, std::function<void(int)> progressCallback) {
+    int nDatabases = vizData->statsData[0].data.size();  // Number of databases
+    int nLocations = vizData->rasterData->locationRaster; // Number of locations
+    int nMonths = vizData->monthCountStartToEnd;  // Number of months
+    int totalIterations = nMonths * nLocations * 5 * vizData->statsData.size(); // Total work units (for all statData)
+    int progress = 0;
 
-void DataProcessor::processStatsData(VizData* vizData, std::function<void(int)> progressCallback, std::function<void()> completionCallback) {
-    int nDatabases = vizData->statsData[0].data.size();      // Assumed number of databases
-    int nLocations = vizData->rasterData->locationRaster;    // Number of locations
-    int nMonths = vizData->monthCountStartToEnd;             // Number of months
-    int totalStats = vizData->statsData.size();              // Total number of statsData items to process
-
-    // Create a QVector of QFuture and a QVector of QFutureWatcher
-    QVector<QFuture<void>> futures;
-
-    // Start a timer to periodically check progress
-    QElapsedTimer timer;
-    timer.start(); // Timer for controlling polling intervals
-
-    // Iterate over each statData and process them in parallel
-    for (int s = 0; s < totalStats; ++s) {
+    // Iterate over each statData
+    for (int s = 0; s < vizData->statsData.size(); ++s) {
         VizData::StatsData& stats = vizData->statsData[s];
 
-        // Launch each stats processing in a separate thread using QtConcurrent::run
-        QFuture<void> future = QtConcurrent::run([=, &stats] {
-            processSingleStatsData(vizData, stats, nDatabases, nLocations, nMonths);
-        });
+        // Initialize the dimensions for median, IQR, min, and max
+        stats.median.resize(nMonths);
+        stats.iqr5.resize(nMonths);
+        stats.iqr25.resize(nMonths);
+        stats.iqr75.resize(nMonths);
+        stats.iqr95.resize(nMonths);
 
-        futures.append(future);  // Add the future to the list
-    }
+        double globalMin = std::numeric_limits<double>::max();
+        double globalMax = std::numeric_limits<double>::lowest();
+        double globalMedianMin = std::numeric_limits<double>::max();
+        double globalMedianMax = std::numeric_limits<double>::lowest();
 
-    int totalProgress = 0;
+        QVector<QFuture<void>> futures; // Store futures to wait for all threads to finish
 
-    // Polling loop to check the progress and invoke the progress callback
-    while (totalProgress < 100) {
-        int completedFutures = 0;
+        // Process each month and each location
+        for (int month = 0; month < nMonths; ++month) {
+            stats.median[month].resize(nLocations);
+            stats.iqr5[month].resize(nLocations);
+            stats.iqr25[month].resize(nLocations);
+            stats.iqr75[month].resize(nLocations);
+            stats.iqr95[month].resize(nLocations);
 
-        // Only poll futures if 100ms have passed since the last poll
-        if (timer.elapsed() > 100) {
-            // Check each future's progress
-            for (int i = 0; i < futures.size(); ++i) {
-                if (futures[i].isFinished()) {
-                    completedFutures++;
+            for (int loc = 0; loc < nLocations; ++loc) {
+                QList<double> values;
+                for (int db = 0; db < nDatabases; ++db) {
+                    values.append(stats.data[db][loc][month]);
                 }
-            }
 
-            // Calculate and report progress
-            int progress = (completedFutures * 100) / totalStats;
-            if (progress > totalProgress) {
-                totalProgress = progress;
-                progressCallback(progress);  // Invoke the progress callback
-            }
+                // Run percentile calculations in parallel using QtConcurrent::run()
+                futures.append(QtConcurrent::run(calculatePercentiles, std::ref(stats), values, month, loc, 50, std::ref(stats.median)));
+                futures.append(QtConcurrent::run(calculatePercentiles, std::ref(stats), values, month, loc, 5, std::ref(stats.iqr5)));
+                futures.append(QtConcurrent::run(calculatePercentiles, std::ref(stats), values, month, loc, 25, std::ref(stats.iqr25)));
+                futures.append(QtConcurrent::run(calculatePercentiles, std::ref(stats), values, month, loc, 75, std::ref(stats.iqr75)));
+                futures.append(QtConcurrent::run(calculatePercentiles, std::ref(stats), values, month, loc, 95, std::ref(stats.iqr95)));
 
-            // Reset the timer for the next poll
-            timer.restart();
+                // Increment progress and call the progress callback
+                progress += 5;  // Increment by 5 because we launched 5 tasks
+                if (progressCallback) {
+                    int percentProgress = (progress * 100) / totalIterations;
+                    progressCallback(percentProgress);  // Report percentage progress, normalized to 0-100
+                }
+
+                // Update global min/max values from data
+                double localMin = *std::min_element(values.begin(), values.end());
+                double localMax = *std::max_element(values.begin(), values.end());
+                globalMin = qMin(globalMin, localMin);
+                globalMax = qMax(globalMax, localMax);
+            }
         }
 
-        // If all futures are done, break the loop
-        if (completedFutures == totalStats) {
-            break;
+        // Wait for all threads to complete
+        for (auto& future : futures) {
+            future.waitForFinished();
         }
 
-        // Allow other events to process (simulating idle polling)
-        QCoreApplication::processEvents();
+        // Assign global min/max values to stats
+        stats.dataMin = globalMin;
+        stats.dataMax = globalMax;
+        stats.medianMin = globalMedianMin;
+        stats.medianMax = globalMedianMax;
     }
+}
 
-    // All futures are completed, invoke the completion callback
-    completionCallback();
+// Function to process data and fill StatsData asynchronously using QFutureWatcher
+void DataProcessor::processStatsData(VizData* vizData, std::function<void(int)> progressCallback, std::function<void()> completionCallback) {
+    // Use QFuture and QFutureWatcher to run the function in a separate thread
+    QFutureWatcher<void> *watcher = new QFutureWatcher<void>();
+
+    // Connect to signals to track progress and completion
+    QObject::connect(watcher, &QFutureWatcher<void>::finished, [=]() {
+        if (completionCallback) {
+            completionCallback();
+        }
+        watcher->deleteLater();  // Clean up the watcher
+    });
+
+    // Run the actual work in a separate thread
+    QFuture<void> future = QtConcurrent::run(processStatsDataWorker, vizData, progressCallback);
+
+    // Set the future to the watcher so it can monitor the progress
+    watcher->setFuture(future);
 }
