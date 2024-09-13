@@ -30,13 +30,15 @@ void calculatePercentiles(VizData::StatsData& stats, QList<double> values, int m
     outputVector[month][loc] = percentile(values, percent);  // Assign to double
 }
 
-// Actual work function to run in a separate thread
+// Actual work function to run in a separate thread for all IQRs/medians
 void processStatsDataWorker(VizData* vizData, std::function<void(int)> progressCallback) {
     int nDatabases = vizData->statsData[0].data.size();  // Number of databases
     int nLocations = vizData->rasterData->locationRaster; // Number of locations
     int nMonths = vizData->monthCountStartToEnd;  // Number of months
-    int totalIterations = nMonths * nLocations * 5 * vizData->statsData.size(); // Total work units (for all statData)
+    int totalTasks = vizData->statsData.size() * nMonths * nLocations * 5; // 5 threads for each statData element (IQRs + median)
     int progress = 0;
+
+    QVector<QFuture<void>> futures; // Store futures to wait for all threads to finish
 
     // Iterate over each statData
     for (int s = 0; s < vizData->statsData.size(); ++s) {
@@ -54,8 +56,6 @@ void processStatsDataWorker(VizData* vizData, std::function<void(int)> progressC
         double globalMedianMin = std::numeric_limits<double>::max();
         double globalMedianMax = std::numeric_limits<double>::lowest();
 
-        QVector<QFuture<void>> futures; // Store futures to wait for all threads to finish
-
         // Process each month and each location
         for (int month = 0; month < nMonths; ++month) {
             stats.median[month].resize(nLocations);
@@ -70,7 +70,7 @@ void processStatsDataWorker(VizData* vizData, std::function<void(int)> progressC
                     values.append(stats.data[db][loc][month]);
                 }
 
-                // Run percentile calculations in parallel using QtConcurrent::run()
+                // Run percentile calculations for all IQRs and median in parallel using 5 threads
                 futures.append(QtConcurrent::run(calculatePercentiles, std::ref(stats), values, month, loc, 50, std::ref(stats.median)));
                 futures.append(QtConcurrent::run(calculatePercentiles, std::ref(stats), values, month, loc, 5, std::ref(stats.iqr5)));
                 futures.append(QtConcurrent::run(calculatePercentiles, std::ref(stats), values, month, loc, 25, std::ref(stats.iqr25)));
@@ -80,7 +80,7 @@ void processStatsDataWorker(VizData* vizData, std::function<void(int)> progressC
                 // Increment progress and call the progress callback
                 progress += 5;  // Increment by 5 because we launched 5 tasks
                 if (progressCallback) {
-                    int percentProgress = (progress * 100) / totalIterations;
+                    int percentProgress = (progress * 100) / totalTasks;
                     progressCallback(percentProgress);  // Report percentage progress, normalized to 0-100
                 }
 
@@ -92,16 +92,16 @@ void processStatsDataWorker(VizData* vizData, std::function<void(int)> progressC
             }
         }
 
-        // Wait for all threads to complete
-        for (auto& future : futures) {
-            future.waitForFinished();
-        }
-
         // Assign global min/max values to stats
         stats.dataMin = globalMin;
         stats.dataMax = globalMax;
         stats.medianMin = globalMedianMin;
         stats.medianMax = globalMedianMax;
+    }
+
+    // Wait for all threads to complete
+    for (auto& future : futures) {
+        future.waitForFinished();
     }
 }
 
