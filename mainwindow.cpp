@@ -10,6 +10,12 @@
 #include <QVBoxLayout>
 #include <QComboBox>
 #include <QFutureWatcher>
+#include <QDialog>
+#include <QTabWidget>
+#include <QTableWidget>
+#include <QVBoxLayout>
+#include <QDialogButtonBox>
+#include <QPushButton>
 
 #include "loadersqlite.h"
 #include "loaderyml.h"
@@ -42,6 +48,138 @@ QStringList searchForFilesWithPattern(const QString &directoryPath, QString patt
         foundFiles.append(filePath);
     }
     return foundFiles;
+}
+
+#include <QDialog>
+#include <QTabWidget>
+#include <QTableWidget>
+#include <QVBoxLayout>
+#include <QDialogButtonBox>
+#include <QCheckBox>
+#include <QHeaderView>
+#include <QDebug>
+#include <QList>
+
+// Function to display sqlData in a dialog with checkable columns in a checklist per tab
+void displaySqlDataInDialogWithChecklist(VizData* vizData, QWidget* parentWidget = nullptr) {
+    // Create the dialog
+    QDialog* dialog = new QDialog(parentWidget);
+    dialog->setWindowTitle("SQL Data Viewer with Checklists");
+    dialog->resize(600, 400); // Set an initial size for the dialog
+
+    // Create a QTabWidget to display the tables
+    QTabWidget* tabWidget = new QTabWidget(dialog);
+
+    // Create a table widget to hold the checkboxes and column names
+    QTableWidget* tableWidget = new QTableWidget();
+    tableWidget->setColumnCount(2); // Two columns: one for the checkbox, one for the column name
+    tableWidget->setHorizontalHeaderLabels(QStringList() << "Select" << "Column Names");
+    tableWidget->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch); // Stretch columns to fit
+
+    QMap<QString,QList<bool>> checkBoxStatus;
+
+    // Preload the state for each table
+    for (int dbIndex = 0; dbIndex < vizData->sqlData.dbPaths.size(); ++dbIndex) {
+        QStringList tables = vizData->sqlData.dbTables;
+        checkBoxStatus = QMap<QString,QList<bool>>();
+        for (const QString& tableName : tables) {
+            int tableIndex = vizData->sqlData.dbTables.indexOf(tableName);
+            int columnCount = vizData->sqlData.dbColumns[tableIndex].size();
+            if (columnCount == 0) {
+                qDebug() << "No columns found for table:" << tableName;
+                continue;
+            }
+
+            // Initialize the checkbox status (all unchecked initially)
+            checkBoxStatus[tableName] = QList<bool>(columnCount, false);
+            tabWidget->addTab(new QWidget(), tableName);  // Add a placeholder tab
+        }
+    }
+
+    // Slot to update the checklist when the tab is changed
+    QObject::connect(tabWidget, &QTabWidget::currentChanged, [&](int index) {
+        QString tableName = tabWidget->tabText(index);
+        int tableIndex = vizData->sqlData.dbTables.indexOf(tableName);
+
+        int columnCount = vizData->sqlData.dbColumns[tableIndex].size();
+        if (columnCount == 0) {
+            qDebug() << "No columns found for table:" << tableName;
+            return;
+        }
+
+        // Clear the previous contents
+        tableWidget->clearContents();
+        tableWidget->setRowCount(columnCount); // Update the number of rows for the current table
+
+        // Populate the tableWidget with checkboxes and column names
+        for (int columnIndex = 0; columnIndex < columnCount; ++columnIndex) {
+            QString columnName = vizData->sqlData.dbColumns[tableIndex][columnIndex];
+
+            // Create a checkbox item
+            QCheckBox *checkBox = new QCheckBox();
+            tableWidget->setCellWidget(columnIndex, 0, checkBox); // Add the checkbox to the first column
+
+            checkBox->setChecked(checkBoxStatus[tableName][columnIndex]);  // Set the checkbox state
+            // Capture the checkbox state when it is changed
+            QObject::connect(checkBox, &QCheckBox::stateChanged, [tableName, columnIndex, &checkBoxStatus](int state) {
+                checkBoxStatus[tableName][columnIndex] = (state == Qt::Checked);  // Update the checkbox status
+            });
+
+            // Create an item for the column name
+            QTableWidgetItem* item = new QTableWidgetItem(columnName);
+            tableWidget->setItem(columnIndex, 1, item);
+        }
+    });
+
+
+
+    // Trigger the update for the initial tab
+    tabWidget->setCurrentIndex(0);  // Make sure the first tab is populated initially
+    emit tabWidget->currentChanged(0);  // Ensure the first tab content is updated on load
+
+    // Create a QDialogButtonBox with OK and Cancel buttons
+    QDialogButtonBox* buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+
+    // Connect the OK button to dialog's accept slot and Cancel button to reject slot
+    QObject::connect(buttonBox, &QDialogButtonBox::accepted, dialog, &QDialog::accept);
+    QObject::connect(buttonBox, &QDialogButtonBox::rejected, dialog, &QDialog::reject);
+
+    // Create a layout for the dialog
+    QVBoxLayout* layout = new QVBoxLayout(dialog);
+    layout->addWidget(tabWidget);   // Add the QTabWidget to the layout
+    layout->addWidget(tableWidget); // Add the checklist table widget below the tab
+    layout->addWidget(buttonBox);   // Add the button box to the layout
+
+    // Set the layout for the dialog
+    dialog->setLayout(layout);
+
+    // Show the dialog
+    dialog->exec();
+
+    // After the dialog is accepted, you can access the selected columns for each table like this:
+    if (dialog->result() == QDialog::Accepted) {
+        vizData->sqlData.tableColumnMap.clear(); // Clear the previous column map
+        qDebug() << "Dialog accepted";  // Add this for debugging
+        for (const QString& tableName : checkBoxStatus.keys()) {
+            int tableIndex = vizData->sqlData.dbTables.indexOf(tableName);
+            QString selectedColumns = "";
+            for (int j = 0; j < checkBoxStatus[tableName].size(); ++j) {
+                if(checkBoxStatus[tableName][j]){
+                    selectedColumns += vizData->sqlData.dbColumns[tableIndex][j] + ",";
+                }
+            }
+            if(!selectedColumns.isEmpty()){
+                selectedColumns.chop(1); // Remove the last comma
+                vizData->sqlData.tableColumnMap[tableName] = selectedColumns;
+            }
+        }
+        for (const QString& tableName : vizData->sqlData.tableColumnMap.keys()) {
+            qDebug() << "Table:" << tableName << " Columns:" << vizData->sqlData.tableColumnMap[tableName];
+
+        }
+    } else {
+        qDebug() << "Dialog rejected";  // Add this for debugging if Cancel is pressed or dialog is closed
+    }
 }
 
 void MainWindow::on_bt_auto_load_folder_clicked()
@@ -92,6 +230,7 @@ void MainWindow::on_bt_auto_load_folder_clicked()
 
     if(all_rasters_exist){
         enableInputWidgets();
+        ui->bt_run->setEnabled(false);
         ui->le_sim_path->setText(selectedDirectory);
 
         //Display only filenames in the combobox
@@ -136,7 +275,22 @@ void MainWindow::on_bt_process_clicked()
 
     loader = nullptr;
     loader = new LoaderSQLite();
-    loader->loadDBList(dbFileList, "locationid", "monthlydataid", "pfpr2to10,population", "monthlysitedata", vizData,
+
+    loader->loadFileSingle(dbFileList[0], vizData, nullptr, nullptr);
+
+    displaySqlDataInDialogWithChecklist(vizData, this);
+
+    if(vizData->sqlData.tableColumnMap.isEmpty()){
+        QMessageBox::information(this, "Information", "No columns selected.");
+        enableInputWidgets();
+        return;
+    }
+
+    loader->loadDBList(dbFileList,
+                       "locationid",
+                       "monthlydataid",
+                       vizData->sqlData.tableColumnMap[vizData->sqlData.tableColumnMap.keys().last()],
+                       vizData->sqlData.tableColumnMap.keys().last(), vizData,
                        [this](int progress) {  // Progress callback
                             QMetaObject::invokeMethod(this, [this, progress]() {
                                 ui->progress_bar->setValue(progress);  // Update the progress bar value
@@ -149,11 +303,10 @@ void MainWindow::on_bt_process_clicked()
                                ui->statusbar->showMessage("Loading database complete!");
 
                                // Do whatever is needed after loading is complete
-                               for (int i = 0; i < vizData->statsData[0].data.size(); i++) {
-                                   int lastLoc = vizData->statsData[0].data[i].size();
-                                   int lastMonth = vizData->statsData[0].data[i][lastLoc - 1].size();
-                                   // qDebug() << "DB: " << dbFileList[i] << " 151 pfpr2to10: " << vizData->statsData[0].data[i][150][150] << " pop: " << vizData->statsData[1].data[i][150][150];
-                                   qDebug() << "DB: " << i << " 151 pfpr2to10: " << vizData->statsData[0].data[i][150][150] << " pop: " << vizData->statsData[1].data[i][150][150];
+                               for(int i = 0; i < vizData->statsData.size(); i++){
+                                   for (int j = 0; j < vizData->statsData[i].data.size(); j++) {
+                                       qDebug() << "Data:" << i << "j:" << vizData->statsData[i].data[j][150][150];
+                                   }
                                }
 
                                // Dynamically allocate the DataProcessor object
@@ -189,7 +342,6 @@ void MainWindow::on_bt_process_clicked()
 
 void MainWindow::on_bt_run_clicked()
 {
-    qDebug() << "Median: " << vizData->statsData[0].median.size() << " x " << vizData->statsData[0].median[0].size();
     qDebug() << "Min: " << vizData->statsData[0].medianMin << " Max: " << vizData->statsData[0].medianMax;
 
     QFutureWatcher<void> *futureWatcher = new QFutureWatcher<void>(this);
@@ -198,11 +350,11 @@ void MainWindow::on_bt_run_clicked()
     QFuture<void> future = QtConcurrent::run([=]() {
         for (int month = 0; month < vizData->statsData[0].median.size(); month++) {
             // Update raster data with the new PfPR values
-            ui->openGLWidget->updateInstanceDataMedian(vizData, month);
+            ui->openGLWidget->updateInstanceDataMedian(vizData, 0, month);
 
             // Ensure updateVertexBuffers() is called in the main thread
             QMetaObject::invokeMethod(ui->openGLWidget, "updateVertexBuffers", Qt::QueuedConnection);
-            qDebug() << "Month: " << month;
+            // qDebug() << "Month: " << month;
 
             // Progress bar needs to be updated in the main thread
             QMetaObject::invokeMethod(this, [=]() {

@@ -275,6 +275,36 @@ void GLWidgetCustom::paintGL()
     shaderProgram->release();
 }
 
+QVector3D interpolate(const QVector3D& color1, const QVector3D& color2, float factor) {
+    return (1.0f - factor) * color1 + factor * color2;
+}
+
+// Define extended color stops for a more detailed gradient
+QVector<QVector3D> colorStops = {
+    QVector3D(0.0f, 0.0f, 0.0f),  // Blue
+    QVector3D(0.0f, 0.25f, 0.0f),  // Midpoint between Blue and Light Blue
+    QVector3D(0.0f, 0.5f, 1.0f),  // Light Blue
+    QVector3D(0.0f, 0.75f, 1.0f),  // Midpoint between Light Blue and Cyan
+    QVector3D(0.0f, 1.0f, 1.0f),  // Cyan
+    QVector3D(0.0f, 1.0f, 0.75f),  // Midpoint between Cyan and Light Green-Cyan
+    QVector3D(0.0f, 1.0f, 0.5f),  // Light Green-Cyan
+    QVector3D(0.0f, 1.0f, 0.25f),  // Midpoint between Light Green-Cyan and Green
+    QVector3D(0.0f, 1.0f, 0.0f),  // Green
+    QVector3D(0.25f, 1.0f, 0.0f),  // Midpoint between Green and Yellow-Green
+    QVector3D(0.5f, 1.0f, 0.0f),  // Yellow-Green
+    QVector3D(0.75f, 1.0f, 0.0f),  // Midpoint between Yellow-Green and Yellow
+    QVector3D(1.0f, 1.0f, 0.0f),  // Yellow
+    QVector3D(1.0f, 0.75f, 0.0f),  // Midpoint between Yellow and Orange
+    QVector3D(1.0f, 0.5f, 0.0f),  // Orange
+    QVector3D(1.0f, 0.25f, 0.0f),  // Midpoint between Orange and Red
+    QVector3D(1.0f, 0.0f, 0.0f),  // Red
+    QVector3D(0.75f, 0.0f, 0.25f),  // Midpoint between Red and Magenta-Purple
+    QVector3D(0.5f, 0.0f, 0.5f),  // Magenta-Purple
+    QVector3D(0.5f, 0.0f, 0.75f),  // Midpoint between Magenta-Purple and Purple
+    QVector3D(0.5f, 0.0f, 1.0f),  // Purple
+    // QVector3D(0.25f, 0.0f, 1.0f),  // Midpoint between Purple and Blue
+    // QVector3D(0.0f, 0.0f, 1.0f)   // Blue
+};
 
 void GLWidgetCustom::updateInstanceData(VizData *vizData, int width, int height)
 {
@@ -323,8 +353,20 @@ void GLWidgetCustom::updateInstanceData(VizData *vizData, int width, int height)
                 // Normalize the value to range [0, 1] based on min and max values
                 float normalizedValue = (static_cast<float>(value) - minValue) / (maxValue - minValue);
 
-                // Map normalizedValue to a color, for example from blue (low) to red (high)
-                QVector3D color(1.0f - normalizedValue, 0.0f, normalizedValue);
+                // Determine which color stop range this value falls into
+                int nColorSteps = colorStops.size() - 1;
+                float stepSize = 1.0f / nColorSteps;
+                int lowerStep = qFloor(normalizedValue / stepSize);
+                float factor = (normalizedValue - lowerStep * stepSize) / stepSize;
+
+                // Ensure we don't go out of bounds
+                if (lowerStep >= nColorSteps) {
+                    lowerStep = nColorSteps - 1;
+                    factor = 1.0f;
+                }
+
+                // Interpolate between the two adjacent colors
+                QVector3D color = interpolate(colorStops[lowerStep], colorStops[lowerStep + 1], factor);
 
                 instanceColors.append(color);
             }
@@ -454,29 +496,54 @@ void GLWidgetCustom::wheelEvent(QWheelEvent *event)
 }
 
 
-void GLWidgetCustom::updateInstanceDataMedian(VizData *vizData, int month)
+void GLWidgetCustom::updateInstanceDataMedian(VizData *vizData, int dataIndex, int month)
 {
     // Set instance offsets based on rasterData
     instanceColors.clear();
     instanceCount = 0;  // Reset instance count
 
+    // Helper function to linearly interpolate between two values
+    auto interpolate = [](const QVector3D& color1, const QVector3D& color2, float factor) -> QVector3D {
+        return (1.0f - factor) * color1 + factor * color2;
+    };
+
+    double minValue = vizData->statsData[dataIndex].medianMin;
+    double maxValue = vizData->statsData[dataIndex].medianMax;
+
     // Loop through rasterData to get valid positions and set colors based on value
-    for (int loc = 0; loc < vizData->statsData[0].median[month].size(); ++loc) {
-        double value = vizData->statsData[0].median[month][loc];
+    for (int loc = 0; loc < vizData->statsData[dataIndex].median[month].size(); ++loc) {
+        double value = vizData->statsData[dataIndex].median[month][loc];
+
+        // Ensure value is within the valid range
+        if (value < minValue) {
+            value = minValue;
+        } else if (value > maxValue) {
+            value = maxValue;
+        }
+
+        // Determine which color stop range this value falls into based on the value itself
+        int nColorSteps = colorStops.size() - 1;
+        double stepSize = (maxValue - minValue) / nColorSteps;
+        int lowerStep = qFloor((value - minValue) / stepSize);
+        float factor = (value - (minValue + lowerStep * stepSize)) / stepSize;
+
+        // Ensure we don't go out of bounds
+        if (lowerStep >= nColorSteps) {
+            lowerStep = nColorSteps - 1;
+            factor = 1.0f;
+        }
+
+        // Interpolate between the two adjacent colors
+        QVector3D color = interpolate(colorStops[lowerStep], colorStops[lowerStep + 1], factor);
+
+        instanceColors.append(color);
 
         // Increment instance count for each valid point
         instanceCount++;
-
-        // Normalize the value to range [0, 1] based on min and max values
-        float normalizedValue = (static_cast<float>(value) - vizData->statsData[0].medianMin) / (vizData->statsData[0].medianMax - vizData->statsData[0].medianMin);
-
-        // Map normalizedValue to a color, for example from blue (low) to red (high)
-        QVector3D color(1.0f - normalizedValue, 0.0f, normalizedValue);
-
-        instanceColors.append(color);
     }
-    qDebug() << "Number of valid median data points:" << instanceCount;
 }
+
+
 
 
 

@@ -33,6 +33,15 @@ public:
         double medianMax = 0;
     };
 
+    struct SQLData{
+        QList<QString> dbPaths;
+        QList<QString> dbTables;
+        QMap<int,QMap<int,QString>> dbColumns;
+        QString locationID;
+        QString monthID;
+        QMap<QString,QString> tableColumnMap;
+    };
+
     VizData();
     RasterData *rasterData;
     QDateTime simStartDate;
@@ -41,6 +50,7 @@ public:
     int monthCountStartToEnd;
     int monthCountCompToEnd;
     QList<StatsData> statsData;
+    SQLData sqlData;
 };
 
 #endif // VIZDATA_H

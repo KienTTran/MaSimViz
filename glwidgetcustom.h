@@ -68,7 +68,7 @@ private:
 
 public:
     void updateInstanceData(VizData *vizData, int width, int height);
-    void updateInstanceDataMedian(VizData *vizData, int month);
+    void updateInstanceDataMedian(VizData *vizData, int dataIndex, int month);
     Q_INVOKABLE void updateVertexBuffers();
 };
 

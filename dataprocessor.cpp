@@ -30,6 +30,12 @@ void calculatePercentiles(VizData::StatsData& stats, QList<double> values, int m
     outputVector[month][loc] = percentile(values, percent);  // Assign to double
 }
 
+// Helper function to update global min/max values
+void updateGlobalMinMax(double localValue, double& globalMin, double& globalMax) {
+    globalMin = qMin(globalMin, localValue);
+    globalMax = qMax(globalMax, localValue);
+}
+
 // Actual work function to run in a separate thread for all IQRs/medians
 void processStatsDataWorker(VizData* vizData, std::function<void(int)> progressCallback) {
     int nDatabases = vizData->statsData[0].data.size();  // Number of databases
@@ -87,8 +93,19 @@ void processStatsDataWorker(VizData* vizData, std::function<void(int)> progressC
                 // Update global min/max values from data
                 double localMin = *std::min_element(values.begin(), values.end());
                 double localMax = *std::max_element(values.begin(), values.end());
-                globalMin = qMin(globalMin, localMin);
-                globalMax = qMax(globalMax, localMax);
+                updateGlobalMinMax(localMin, globalMin, globalMax);
+            }
+        }
+
+        // Wait for all threads to complete
+        for (auto& future : futures) {
+            future.waitForFinished();
+        }
+
+        // After all percentile calculations are done, update the global median min/max values
+        for (int month = 0; month < nMonths; ++month) {
+            for (int loc = 0; loc < nLocations; ++loc) {
+                updateGlobalMinMax(stats.median[month][loc], globalMedianMin, globalMedianMax);
             }
         }
 
@@ -98,12 +115,8 @@ void processStatsDataWorker(VizData* vizData, std::function<void(int)> progressC
         stats.medianMin = globalMedianMin;
         stats.medianMax = globalMedianMax;
     }
-
-    // Wait for all threads to complete
-    for (auto& future : futures) {
-        future.waitForFinished();
-    }
 }
+
 
 // Function to process data and fill StatsData asynchronously using QFutureWatcher
 void DataProcessor::processStatsData(VizData* vizData, std::function<void(int)> progressCallback, std::function<void()> completionCallback) {

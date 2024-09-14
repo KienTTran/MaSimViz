@@ -72,7 +72,7 @@ void LoaderRaster::loadFileList(const QStringList &dbPathList, VizData *vizData,
     qDebug() << "Error: Not implemented loadFileList for LoaderRaster!";
 }
 
-void LoaderRaster::loadDBList(const QStringList &dbPathList, const QString locationID, const QString monthID, const QString columns, const QString databaseName, VizData *vizData, std::function<void(int)> progressCallback, std::function<void()> completionCallback) {
+void LoaderRaster::loadDBList(const QStringList &dbPathList, const QString locationID, const QString monthID, const QString columns, const QString tableName, VizData *vizData, std::function<void(int)> progressCallback, std::function<void()> completionCallback) {
     // Not implemented for raster data
     qDebug() << "Error: Not implemented loadDBList for LoaderRaster!";
 }

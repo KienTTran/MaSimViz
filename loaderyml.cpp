@@ -65,7 +65,7 @@ void LoaderYML::loadFileSingle(const QString &filePath, VizData *vizData, std::f
     qDebug() << "monthCountCompToEnd: " << vizData->monthCountCompToEnd;
 }
 
-void LoaderYML::loadDBList(const QStringList &dbPathList, const QString locationID, const QString monthID, const QString columns, const QString databaseName, VizData *vizData, std::function<void(int)> progressCallback, std::function<void()> completionCallback) {
+void LoaderYML::loadDBList(const QStringList &dbPathList, const QString locationID, const QString monthID, const QString columns, const QString tableName, VizData *vizData, std::function<void(int)> progressCallback, std::function<void()> completionCallback) {
     // Load a single file
     qDebug() << "Error: Not implemented loadDBList for LoaderYML!";
 }

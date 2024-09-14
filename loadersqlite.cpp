@@ -13,9 +13,70 @@
 #include "vizdata.h"
 
 void LoaderSQLite::loadFileSingle(const QString &filePath, VizData *vizData, std::function<void(int)> progressCallback, std::function<void()> completionCallback) {
-    // Load a single file
-    qDebug() << "Error: Not implemented loadFileSingle for LoaderSQLite!";
+    // Load a single database and get all columns
+    vizData->sqlData.dbPaths.clear();
+    vizData->sqlData.dbTables.clear();
+    vizData->sqlData.dbColumns.clear();
+    QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE");
+    db.setDatabaseName(filePath);
+    if (!db.open()) {
+        qDebug() << "Failed to open database:" << filePath << db.lastError().text();
+        return;
+    }
+
+    // Store the database path in VizData's sqlData
+    vizData->sqlData.dbPaths.append(filePath);
+
+    // Get list of tables in the database
+    QStringList tables = db.tables();
+    if (tables.isEmpty()) {
+        qDebug() << "No tables found in database:" << filePath;
+        db.close();
+        return;
+    }
+
+    qDebug() << "Tables found in database:" << filePath;
+
+    // Add the table names to VizData's sqlData
+    vizData->sqlData.dbTables.append(tables);
+
+    // Index for the current database in dbPaths (the latest added)
+    int dbIndex = vizData->sqlData.dbPaths.size() - 1;
+
+    // Loop through tables and store their columns in VizData
+    for (const QString &table : tables) {
+        QSqlQuery query(db);
+
+        // Get the column information from the table using PRAGMA table_info
+        if (!query.exec(QString("PRAGMA table_info(%1)").arg(table))) {
+            qDebug() << "Failed to get table info for" << table << ":" << query.lastError().text();
+            continue; // Skip to the next table if there's an error
+        }
+
+        // Variable to store the index for the table in the column map
+        int tableIndex = vizData->sqlData.dbTables.indexOf(table);
+
+        // Column counter to track the order of columns
+        int columnIndex = 0;
+
+        // Loop through each column in the table
+        while (query.next()) {
+            QString columnName = query.value("name").toString();
+            vizData->sqlData.dbColumns[tableIndex][columnIndex] = columnName;
+            columnIndex++;
+        }
+    }
+
+    // Clean up and close the database
+    db.close();
+
+    // Call the completion callback if provided
+    if (completionCallback) {
+        completionCallback();
+    }
 }
+
+
 
 void LoaderSQLite::loadFileList(const QStringList &dbPathList, VizData *vizData, std::function<void(int)> progressCallback, std::function<void()> completionCallback) {
     // Load a list of files
@@ -63,9 +124,37 @@ void processDatabase(const QString &dbPath, int dbIndex, const QString &location
     db.close();
 }
 
-void LoaderSQLite::loadDBList(const QStringList &dbPathList, const QString locationID, const QString monthID, const QString columns, const QString databaseName, VizData *vizData, std::function<void(int)> progressCallback, std::function<void()> completionCallback) {
+void LoaderSQLite::loadDBList(const QStringList &dbPathList, const QString locationID, const QString monthID, const QString columns, const QString tableName, VizData *vizData, std::function<void(int)> progressCallback, std::function<void()> completionCallback) {
     int numDatabases = dbPathList.size();
-    QStringList columnList = columns.split(',');
+    if(columns.isEmpty()) {
+        qDebug() << "Error: No columns selected!";
+        return;
+    }
+    else if(tableName.isEmpty()) {
+        qDebug() << "Error: No table selected!";
+        return;
+    }
+    else if(locationID.isEmpty()) {
+        qDebug() << "Error: No location ID selected!";
+        return;
+    }
+    else if(monthID.isEmpty()) {
+        qDebug() << "Error: No month ID selected!";
+        return;
+    }
+    else{
+        qDebug() << "Columns: " << columns;
+        qDebug() << "Table: " << tableName;
+        qDebug() << "Location ID: " << locationID;
+        qDebug() << "Month ID: " << monthID;
+    }
+    QStringList columnList = QStringList();
+    if(columns.contains(',')){
+        columnList = columns.split(',');
+    }
+    else{
+        columnList.append(columns);
+    }
 
     // Initialize statsData for each column
     vizData->statsData.clear();
@@ -87,7 +176,7 @@ void LoaderSQLite::loadDBList(const QStringList &dbPathList, const QString locat
     // Launch each database processing task concurrently
     for (int dbIndex = 0; dbIndex < numDatabases; ++dbIndex) {
         QFuture<void> future = QtConcurrent::run([=]() {
-            processDatabase(dbPathList[dbIndex], dbIndex, locationID, monthID, columnList, databaseName, vizData);
+            processDatabase(dbPathList[dbIndex], dbIndex, locationID, monthID, columnList, tableName, vizData);
         });
         futures.append(future);
     }
