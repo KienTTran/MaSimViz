@@ -69,6 +69,7 @@ void displaySqlDataInDialogWithChecklist(VizData* vizData, QWidget* parentWidget
     QDialog* dialog = new QDialog(parentWidget);
     dialog->setWindowTitle("SQL Data Viewer with Checklists");
     dialog->resize(600, 400); // Set an initial size for the dialog
+    dialog->setWindowFlags(Qt::Dialog | Qt::CustomizeWindowHint | Qt::WindowTitleHint);
 
     // Create a QTabWidget to display the tables
     QTabWidget* tabWidget = new QTabWidget(dialog);
@@ -105,15 +106,18 @@ void displaySqlDataInDialogWithChecklist(VizData* vizData, QWidget* parentWidget
             for (int columnIndex = 0; columnIndex < columnCount; ++columnIndex) {
                 QString columnName = vizData->sqlData.dbColumns[tableIndex][columnIndex];
 
-                // Create a checkbox item
-                QCheckBox *checkBox = new QCheckBox();
-                tableWidget->setCellWidget(columnIndex, 0, checkBox); // Add the checkbox to the first column
-
-                checkBox->setChecked(checkBoxStatus[tableName][columnIndex]);  // Set the checkbox state
-                // Capture the checkbox state when it is changed
-                QObject::connect(checkBox, &QCheckBox::stateChanged, [tableName, columnIndex, &checkBoxStatus](int state) {
-                    checkBoxStatus[tableName][columnIndex] = (state == Qt::Checked);  // Update the checkbox status
-                });
+                //Disable column locationID and monthID checkbox
+                if(columnName != vizData->sqlData.locationID && columnName != vizData->sqlData.monthID){
+                    // Create a checkbox item
+                    QCheckBox *checkBox = new QCheckBox();
+                    tableWidget->setCellWidget(columnIndex, 0, checkBox); // Add the checkbox to the first column
+                    tableWidget->setColumnWidth(0,10);
+                    checkBox->setChecked(checkBoxStatus[tableName][columnIndex]);  // Set the checkbox state
+                    // Capture the checkbox state when it is changed
+                    QObject::connect(checkBox, &QCheckBox::stateChanged, [tableName, columnIndex, &checkBoxStatus](int state) {
+                        checkBoxStatus[tableName][columnIndex] = (state == Qt::Checked);  // Update the checkbox status
+                    });
+                }
 
                 // Create an item for the column name
                 QTableWidgetItem* item = new QTableWidgetItem(columnName);
@@ -260,6 +264,17 @@ void MainWindow::on_cb_raster_list_currentIndexChanged(int index)
 void MainWindow::on_bt_process_clicked()
 {
     disabeInputWidgets();
+    if(ui->progress_bar->isHidden()){
+        ui->progress_bar->setHidden(true);
+        ui->slider_progress->setHidden(false);
+    }
+    ui->bt_run->setText("Run");
+    ui->progress_bar->setValue(0);
+    ui->slider_progress->setValue(0);
+    isRunning = false;
+    stopLoop = false;
+    ui->statusbar->showMessage("Loading database files...");
+
     loader = nullptr;
     loader = new LoaderYML();
     loader->loadFileSingle(ymlFileList[0], vizData, nullptr, nullptr);
@@ -268,6 +283,9 @@ void MainWindow::on_bt_process_clicked()
     loader = new LoaderSQLite();
 
     loader->loadFileSingle(dbFileList[0], vizData, nullptr, nullptr);
+
+    vizData->sqlData.locationID = "locationid";
+    vizData->sqlData.monthID = "monthlydataid";
 
     displaySqlDataInDialogWithChecklist(vizData, this);
 
@@ -278,8 +296,8 @@ void MainWindow::on_bt_process_clicked()
     }
 
     loader->loadDBList(dbFileList,
-                       "locationid",
-                       "monthlydataid",
+                       vizData->sqlData.locationID,
+                       vizData->sqlData.monthID,
                        vizData->sqlData.tableColumnMap[vizData->sqlData.tableColumnMap.keys().last()],
                        vizData->sqlData.tableColumnMap.keys().last(), vizData,
                        [this](int progress) {  // Progress callback
@@ -395,7 +413,7 @@ void MainWindow::on_bt_run_clicked()
         if (!stopLoop)
         {
             currentMonth = 0;  // Reset the month after completion
-           showWhenPause();
+            showWhenPause();
             ui->bt_run->setText("Run");
             ui->statusbar->showMessage("Playing complete.");
         }

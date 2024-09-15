@@ -281,7 +281,7 @@ QVector3D interpolate(const QVector3D& color1, const QVector3D& color2, float fa
 
 // Define extended color stops for a more detailed gradient
 QVector<QVector3D> colorStops = {
-    QVector3D(0.0f, 0.0f, 0.0f),  // Blue
+    QVector3D(0.1f, 0.1f, 0.1f),  // Blue
     QVector3D(0.0f, 0.25f, 0.0f),  // Midpoint between Blue and Light Blue
     QVector3D(0.0f, 0.5f, 1.0f),  // Light Blue
     QVector3D(0.0f, 0.75f, 1.0f),  // Midpoint between Light Blue and Cyan
