@@ -224,27 +224,27 @@ void MainWindow::on_bt_auto_load_folder_clicked()
         ui->bt_run->setEnabled(false);
         ui->le_sim_path->setText(selectedDirectory);
 
-        // //Display only filenames in the combobox
-        // QStringList ascFileNameList;
-        // for(const QString &ascFilePath : ascFileList){
-        //     QFileInfo fileInfo(ascFilePath);
-        //     ascFileNameList.append(fileInfo.fileName());
-        // }
+        //Display only filenames in the combobox
+        QStringList ascFileNameList;
+        for(const QString &ascFilePath : ascFileList){
+            QFileInfo fileInfo(ascFilePath);
+            ascFileNameList.append(fileInfo.fileName());
+        }
 
-        // QStringListModel *model = new QStringListModel(this);
-        // model->setStringList(ascFileNameList);
-        // ui->cb_raster_list->setModel(model);
+        QStringListModel *model = new QStringListModel(this);
+        model->setStringList(ascFileNameList);
+        ui->cb_raster_list->setModel(model);
     }
 }
 
 
 void MainWindow::on_cb_raster_list_activated(int index)
 {
-    // loader = nullptr;
-    // loader = new LoaderRaster();
-    // loader->loadFileSingle(ascFileList[index], vizData, nullptr, nullptr);
-    // ui->openGLWidget->updateInstanceData(vizData, ui->openGLWidget->width(),ui->openGLWidget->height());
-    // ui->openGLWidget->updateVertexBuffers();
+    loader = nullptr;
+    loader = new LoaderRaster();
+    loader->loadFileSingle(ascFileList[index], vizData, nullptr, nullptr);
+    ui->openGLWidget->updateInstanceData(vizData, ui->openGLWidget->width(),ui->openGLWidget->height());
+    ui->openGLWidget->updateVertexBuffers();
 }
 
 
