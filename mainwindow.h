@@ -51,6 +51,8 @@ private slots:
 
     void on_slider_progress_sliderMoved(int position);
 
+    void on_cb_db_list_currentIndexChanged(int index);
+
 private:
     Ui::MainWindow *ui;
     QString statusMessage = "";
@@ -78,5 +80,6 @@ private:
     std::atomic<bool> stopLoop;  // Global or class member to stop the loop
     bool isRunning = false;             // Global or class member to track play/pause state
     int currentMonth = 0;
+    int currentColIndexPlaying = 0;
 };
 #endif // MAINWINDOW_H

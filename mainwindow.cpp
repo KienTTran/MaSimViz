@@ -75,6 +75,7 @@ void displaySqlDataInDialogWithChecklist(VizData* vizData, QWidget* parentWidget
     QTabWidget* tabWidget = new QTabWidget(dialog);
 
     QMap<QString, QList<bool>> checkBoxStatus;
+    QList<QTableWidget*> tableWidgets; // Store the table widgets for each tab
 
     // Preload the state for each table
     for (int dbIndex = 0; dbIndex < vizData->sqlData.dbPaths.size(); ++dbIndex) {
@@ -98,20 +99,21 @@ void displaySqlDataInDialogWithChecklist(VizData* vizData, QWidget* parentWidget
             // Create a table widget to hold the checkboxes and column names
             QTableWidget* tableWidget = new QTableWidget();
             tableWidget->setColumnCount(2); // Two columns: one for the checkbox, one for the column name
-            tableWidget->setHorizontalHeaderLabels(QStringList() << "Select" << "Column Names");
+            tableWidget->setHorizontalHeaderLabels(QStringList() << "Select?" << "Column Names");
             tableWidget->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch); // Stretch columns to fit
             tableWidget->setRowCount(columnCount); // Set the number of rows for the current table
+
+            tableWidgets.append(tableWidget); // Store table widget reference for later use
 
             // Populate the tableWidget with checkboxes and column names
             for (int columnIndex = 0; columnIndex < columnCount; ++columnIndex) {
                 QString columnName = vizData->sqlData.dbColumns[tableIndex][columnIndex];
 
-                //Disable column locationID and monthID checkbox
-                if(columnName != vizData->sqlData.locationID && columnName != vizData->sqlData.monthID){
+                // Disable column locationID and monthID checkbox
+                if (columnName != vizData->sqlData.locationID && columnName != vizData->sqlData.monthID) {
                     // Create a checkbox item
                     QCheckBox *checkBox = new QCheckBox();
                     tableWidget->setCellWidget(columnIndex, 0, checkBox); // Add the checkbox to the first column
-                    tableWidget->setColumnWidth(0,10);
                     checkBox->setChecked(checkBoxStatus[tableName][columnIndex]);  // Set the checkbox state
                     // Capture the checkbox state when it is changed
                     QObject::connect(checkBox, &QCheckBox::stateChanged, [tableName, columnIndex, &checkBoxStatus](int state) {
@@ -148,6 +150,19 @@ void displaySqlDataInDialogWithChecklist(VizData* vizData, QWidget* parentWidget
     // Set the layout for the dialog
     dialog->setLayout(layout);
 
+    // Slot to reset all checkboxes in the current tab
+    QObject::connect(tabWidget, &QTabWidget::currentChanged, [=](int index) {
+        if (index >= 0 && index < tableWidgets.size()) {
+            QTableWidget* currentTable = tableWidgets[index];
+            for (int i = 0; i < currentTable->rowCount(); ++i) {
+                QWidget* widget = currentTable->cellWidget(i, 0);
+                if (QCheckBox* checkBox = qobject_cast<QCheckBox*>(widget)) {
+                    checkBox->setChecked(false); // Reset all checkboxes
+                }
+            }
+        }
+    });
+
     // Show the dialog
     dialog->exec();
 
@@ -175,6 +190,7 @@ void displaySqlDataInDialogWithChecklist(VizData* vizData, QWidget* parentWidget
         qDebug() << "Dialog rejected";  // Add this for debugging if Cancel is pressed or dialog is closed
     }
 }
+
 
 
 void MainWindow::on_bt_auto_load_folder_clicked()
@@ -264,10 +280,9 @@ void MainWindow::on_cb_raster_list_currentIndexChanged(int index)
 void MainWindow::on_bt_process_clicked()
 {
     disabeInputWidgets();
-    if(ui->progress_bar->isHidden()){
-        ui->progress_bar->setHidden(true);
-        ui->slider_progress->setHidden(false);
-    }
+    ui->progress_bar->setHidden(false);
+    ui->slider_progress->setHidden(true);
+
     ui->bt_run->setText("Run");
     ui->progress_bar->setValue(0);
     ui->slider_progress->setValue(0);
@@ -340,6 +355,13 @@ void MainWindow::on_bt_process_clicked()
                                                                            qDebug() << "Month 150 75 150: " << vizData->statsData[i].iqr75[150][150];
                                                                            qDebug() << "Month 150 95 150: " << vizData->statsData[i].iqr95[150][150];
                                                                        }
+
+                                                                       QStringListModel *model = new QStringListModel(this);
+                                                                       //Here load the only table because 1 table is allowed in this branch
+                                                                       model->setStringList(vizData->sqlData.tableColumnMap[vizData->sqlData.tableColumnMap.keys().last()].split(','));
+                                                                       currentColIndexPlaying = 0;
+                                                                       ui->cb_db_list->setModel(model);
+
                                                                        showWhenPlay();
                                                                        enableInputWidgets();
                                                                    }, Qt::QueuedConnection);
@@ -366,11 +388,11 @@ void MainWindow::on_bt_run_clicked()
     stopLoop = false;
 
     QObject::connect(ui->slider_progress, &QSlider::valueChanged, this, [=](int value) {
-        currentMonth = value * vizData->statsData[0].median.size() / 100;
-        if (currentMonth >= vizData->statsData[0].median.size()) {
-            currentMonth = vizData->statsData[0].median.size() - 1;
+        currentMonth = value * vizData->statsData[currentColIndexPlaying].median.size() / 100;
+        if (currentMonth >= vizData->statsData[currentColIndexPlaying].median.size()) {
+            currentMonth = vizData->statsData[currentColIndexPlaying].median.size() - 1;
         }
-        ui->openGLWidget->updateInstanceDataMedian(vizData, 0, currentMonth);
+        ui->openGLWidget->updateInstanceDataMedian(vizData, currentColIndexPlaying, currentMonth);
         QMetaObject::invokeMethod(ui->openGLWidget, "updateVertexBuffers", Qt::QueuedConnection);
         ui->statusbar->showMessage("Month: " + QString::number(currentMonth) + " Year: " + QString::number(currentMonth / 12));
     });
@@ -379,7 +401,7 @@ void MainWindow::on_bt_run_clicked()
 
     // Define a lambda function to update the data in a separate thread
     QFuture<void> future = QtConcurrent::run([=]() {
-        for (int month = currentMonth; month < vizData->statsData[0].median.size(); month++) {
+        for (int month = currentMonth; month < vizData->statsData[currentColIndexPlaying].median.size(); month++) {
             // Check if the loop should be stopped
             if (stopLoop) {
                 currentMonth = month;  // Save the current month to resume from
@@ -388,14 +410,14 @@ void MainWindow::on_bt_run_clicked()
             }
 
             // Update raster data with the new PfPR values
-            ui->openGLWidget->updateInstanceDataMedian(vizData, 0, month);
+            ui->openGLWidget->updateInstanceDataMedian(vizData, currentColIndexPlaying, month);
 
             // Ensure updateVertexBuffers() is called in the main thread
             QMetaObject::invokeMethod(ui->openGLWidget, "updateVertexBuffers", Qt::QueuedConnection);
 
             // Progress bar needs to be updated in the main thread
             QMetaObject::invokeMethod(this, [=]() {
-                ui->slider_progress->setValue(month * 100 / vizData->statsData[0].median.size());
+                ui->slider_progress->setValue(month * 100 / vizData->statsData[currentColIndexPlaying].median.size());
                 ui->statusbar->showMessage("Month: " + QString::number(currentMonth) + " Year: " + QString::number(currentMonth / 12));
             }, Qt::QueuedConnection);
 
@@ -413,7 +435,6 @@ void MainWindow::on_bt_run_clicked()
         if (!stopLoop)
         {
             currentMonth = 0;  // Reset the month after completion
-            showWhenPause();
             ui->bt_run->setText("Run");
             ui->statusbar->showMessage("Playing complete.");
         }
@@ -495,7 +516,7 @@ void MainWindow::showWhenPlay(){
 void MainWindow::showWhenPause(){
     ui->cb_db_list->setHidden(true);
     ui->cb_raster_list->setHidden(false);
-    ui->progress_bar->setHidden(true);
+    ui->progress_bar->setHidden(false);
     ui->slider_progress->setHidden(true);
 }
 
@@ -510,13 +531,24 @@ void MainWindow::on_slider_progress_sliderMoved(int position)
     isRunning = false;
     stopLoop = true;
     ui->bt_run->setText("Run");
-    currentMonth = position * vizData->statsData[0].median.size() / 100;
-    if (currentMonth >= vizData->statsData[0].median.size()) {
-        currentMonth = vizData->statsData[0].median.size() - 1;
+    currentMonth = position * vizData->statsData[currentColIndexPlaying].median.size() / 100;
+    if (currentMonth >= vizData->statsData[currentColIndexPlaying].median.size()) {
+        currentMonth = vizData->statsData[currentColIndexPlaying].median.size() - 1;
     }
-    ui->openGLWidget->updateInstanceDataMedian(vizData, 0, currentMonth);
+    ui->openGLWidget->updateInstanceDataMedian(vizData, currentColIndexPlaying, currentMonth);
     QMetaObject::invokeMethod(ui->openGLWidget, "updateVertexBuffers", Qt::QueuedConnection);
     ui->statusbar->showMessage("Month: " + QString::number(currentMonth) + " Year: " + QString::number(currentMonth / 12));
 
+}
+
+
+void MainWindow::on_cb_db_list_currentIndexChanged(int index)
+{
+    currentColIndexPlaying = index;
+    if(!isRunning){
+        ui->openGLWidget->updateInstanceDataMedian(vizData, currentColIndexPlaying, currentMonth);
+        QMetaObject::invokeMethod(ui->openGLWidget, "updateVertexBuffers", Qt::QueuedConnection);
+        ui->statusbar->showMessage("Month: " + QString::number(currentMonth) + " Year: " + QString::number(currentMonth / 12));
+    }
 }
 
