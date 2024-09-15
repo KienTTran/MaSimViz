@@ -12,6 +12,7 @@
 #include <QtConcurrent>
 #include <QFuture>
 #include <QFutureWatcher>
+#include <atomic>
 
 #include "loader.h"
 #include "vizdata.h"
@@ -46,6 +47,10 @@ private slots:
 
     void on_le_sim_path_returnPressed();
 
+    void on_slider_progress_valueChanged(int value);
+
+    void on_slider_progress_sliderMoved(int position);
+
 private:
     Ui::MainWindow *ui;
     QString statusMessage = "";
@@ -64,8 +69,14 @@ private:
 private:
     void disabeInputWidgets();
     void enableInputWidgets();
+    void showWhenPlay();
+    void showWhenPause();
 
 private:
     bool all_rasters_exist = false;
+
+    std::atomic<bool> stopLoop;  // Global or class member to stop the loop
+    bool isRunning = false;             // Global or class member to track play/pause state
+    int currentMonth = 0;
 };
 #endif // MAINWINDOW_H
