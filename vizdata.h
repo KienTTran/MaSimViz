@@ -44,6 +44,7 @@ public:
 
     VizData();
     RasterData *rasterData;
+    RasterData *rasterDataAll;
     QDateTime simStartDate;
     QDateTime simCompDate;
     QDateTime simEndDate;

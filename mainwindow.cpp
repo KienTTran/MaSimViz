@@ -1,6 +1,7 @@
 #include "mainwindow.h"
 #include "./ui_mainwindow.h"
 #include <QApplication>
+#include <QResizeEvent>
 #include <QFileDialog>
 #include <QDirIterator>
 #include <QDebug>
@@ -16,7 +17,15 @@
 #include <QVBoxLayout>
 #include <QDialogButtonBox>
 #include <QPushButton>
-
+#include <QDialog>
+#include <QTabWidget>
+#include <QTableWidget>
+#include <QVBoxLayout>
+#include <QDialogButtonBox>
+#include <QCheckBox>
+#include <QHeaderView>
+#include <QDebug>
+#include <QList>
 #include "loadersqlite.h"
 #include "loaderyml.h"
 #include "loaderraster.h"
@@ -33,11 +42,18 @@ MainWindow::MainWindow(QWidget *parent)
     ui->slider_progress->setHidden(true);
     ui->cb_db_list->setHidden(true);
     stopLoop = false;
+    ui->cb_show_chart->setHidden(true);
+    ui->gv_chartview->setHidden(true);
 }
 
 MainWindow::~MainWindow()
 {
     delete ui;
+}
+
+void MainWindow::resizeEvent(QResizeEvent *event)
+{
+    QMainWindow::resizeEvent(event);
 }
 
 // Function to search for .asc files in the given directory
@@ -52,16 +68,6 @@ QStringList searchForFilesWithPattern(const QString &directoryPath, QString patt
     }
     return foundFiles;
 }
-
-#include <QDialog>
-#include <QTabWidget>
-#include <QTableWidget>
-#include <QVBoxLayout>
-#include <QDialogButtonBox>
-#include <QCheckBox>
-#include <QHeaderView>
-#include <QDebug>
-#include <QList>
 
 // Function to display sqlData in a dialog with checkable columns in a checklist per tab
 void displaySqlDataInDialogWithChecklist(VizData* vizData, QWidget* parentWidget = nullptr) {
@@ -241,6 +247,23 @@ void MainWindow::on_bt_auto_load_folder_clicked()
 
     if(all_rasters_exist){
         enableInputWidgets();
+
+        ui->progress_bar->setHidden(false);
+        ui->slider_progress->setHidden(true);
+
+        ui->cb_show_chart->setCheckState(Qt::Unchecked);
+        ui->cb_show_chart->setChecked(false);
+        ui->cb_show_chart->setHidden(true);
+
+        ui->cb_db_list->setHidden(true);
+        ui->cb_raster_list->setHidden(false);
+
+        ui->bt_run->setText("Run");
+        ui->progress_bar->setValue(0);
+        ui->slider_progress->setValue(0);
+        isRunning = false;
+        stopLoop = false;
+
         ui->bt_run->setEnabled(false);
         ui->le_sim_path->setText(selectedDirectory);
 
@@ -260,20 +283,25 @@ void MainWindow::on_bt_auto_load_folder_clicked()
 
 void MainWindow::on_cb_raster_list_activated(int index)
 {
-    loader = nullptr;
-    loader = new LoaderRaster();
-    loader->loadFileSingle(ascFileList[index], vizData, nullptr, nullptr);
-    ui->openGLWidget->updateInstanceData(vizData, ui->openGLWidget->width(),ui->openGLWidget->height());
-    ui->openGLWidget->updateVertexBuffers();
+    if(vizData->rasterData->values.isEmpty()){
+        QMessageBox::information(this, "Information", "No raster data loaded.");
+        loader = nullptr;
+        loader = new LoaderRaster();
+        loader->loadFileSingle(ascFileList[index], vizData, nullptr, nullptr);
+        ui->openGLWidget->vizData = vizData;
+        ui->openGLWidget->updateInstanceData(ui->openGLWidget->width(),ui->openGLWidget->height());
+        ui->openGLWidget->updateVertexBuffers();
+    }
 }
 
 
 void MainWindow::on_cb_raster_list_currentIndexChanged(int index)
 {
-    loader = nullptr;
-    loader = new LoaderRaster();
+    LoaderRaster *loader = new LoaderRaster();
     loader->loadFileSingle(ascFileList[index], vizData, nullptr, nullptr);
-    ui->openGLWidget->updateInstanceData(vizData, ui->openGLWidget->width(),ui->openGLWidget->height());
+    ui->openGLWidget->vizData = vizData;
+    ui->openGLWidget->updateInstanceData(ui->openGLWidget->width(),ui->openGLWidget->height());
+    ui->openGLWidget->updateVertexData();
     ui->openGLWidget->updateVertexBuffers();
 }
 
@@ -282,6 +310,10 @@ void MainWindow::on_bt_process_clicked()
     disabeInputWidgets();
     ui->progress_bar->setHidden(false);
     ui->slider_progress->setHidden(true);
+
+    ui->cb_show_chart->setCheckState(Qt::Unchecked);
+    ui->cb_show_chart->setChecked(false);
+    ui->cb_show_chart->setHidden(true);
 
     ui->bt_run->setText("Run");
     ui->progress_bar->setValue(0);
@@ -358,9 +390,16 @@ void MainWindow::on_bt_process_clicked()
 
                                                                        QStringListModel *model = new QStringListModel(this);
                                                                        //Here load the only table because 1 table is allowed in this branch
-                                                                       model->setStringList(vizData->sqlData.tableColumnMap[vizData->sqlData.tableColumnMap.keys().last()].split(','));
+                                                                       QStringList tableList = vizData->sqlData.tableColumnMap[vizData->sqlData.tableColumnMap.keys().last()].split(',');
+                                                                       model->setStringList(tableList);
                                                                        currentColIndexPlaying = 0;
                                                                        ui->cb_db_list->setModel(model);
+
+                                                                       ui->cb_show_chart->setHidden(false);
+                                                                       QObject::connect(ui->cb_show_chart, &QCheckBox::stateChanged, this, [=](int state) {
+                                                                           plotChart(currentColIndexPlaying);
+                                                                           ui->gv_chartview->setHidden(state == Qt::Unchecked);
+                                                                       });
 
                                                                        showWhenPlay();
                                                                        enableInputWidgets();
@@ -392,9 +431,10 @@ void MainWindow::on_bt_run_clicked()
         if (currentMonth >= vizData->statsData[currentColIndexPlaying].median.size()) {
             currentMonth = vizData->statsData[currentColIndexPlaying].median.size() - 1;
         }
-        ui->openGLWidget->updateInstanceDataMedian(vizData, currentColIndexPlaying, currentMonth);
+        ui->openGLWidget->updateInstanceDataMedian(currentColIndexPlaying, currentMonth);
         QMetaObject::invokeMethod(ui->openGLWidget, "updateVertexBuffers", Qt::QueuedConnection);
-        ui->statusbar->showMessage("Month: " + QString::number(currentMonth) + " Year: " + QString::number(currentMonth / 12));
+        double yValue = plotVerticalLineOnChart(currentMonth);
+        ui->statusbar->showMessage("Month: " + QString::number(currentMonth) + " Year: " + QString::number(currentMonth / 12) + " Value: " + QString::number(yValue));
     });
 
     QFutureWatcher<void> *futureWatcher = new QFutureWatcher<void>(this);
@@ -410,7 +450,7 @@ void MainWindow::on_bt_run_clicked()
             }
 
             // Update raster data with the new PfPR values
-            ui->openGLWidget->updateInstanceDataMedian(vizData, currentColIndexPlaying, month);
+            ui->openGLWidget->updateInstanceDataMedian(currentColIndexPlaying, month);
 
             // Ensure updateVertexBuffers() is called in the main thread
             QMetaObject::invokeMethod(ui->openGLWidget, "updateVertexBuffers", Qt::QueuedConnection);
@@ -418,7 +458,8 @@ void MainWindow::on_bt_run_clicked()
             // Progress bar needs to be updated in the main thread
             QMetaObject::invokeMethod(this, [=]() {
                 ui->slider_progress->setValue(month * 100 / vizData->statsData[currentColIndexPlaying].median.size());
-                ui->statusbar->showMessage("Month: " + QString::number(currentMonth) + " Year: " + QString::number(currentMonth / 12));
+                double yValue = plotVerticalLineOnChart(currentMonth);
+                ui->statusbar->showMessage("Month: " + QString::number(currentMonth) + " Year: " + QString::number(currentMonth / 12) + " Value: " + QString::number(yValue));
             }, Qt::QueuedConnection);
 
             // Sleep for 50 milliseconds to simulate processing time
@@ -435,6 +476,7 @@ void MainWindow::on_bt_run_clicked()
         if (!stopLoop)
         {
             currentMonth = 0;  // Reset the month after completion
+            ui->slider_progress->setValue(0);
             ui->bt_run->setText("Run");
             ui->statusbar->showMessage("Playing complete.");
         }
@@ -523,6 +565,14 @@ void MainWindow::showWhenPause(){
 
 void MainWindow::on_slider_progress_valueChanged(int value)
 {
+    currentMonth = value * vizData->statsData[currentColIndexPlaying].median.size() / 100;
+    if (currentMonth >= vizData->statsData[currentColIndexPlaying].median.size()) {
+        currentMonth = vizData->statsData[currentColIndexPlaying].median.size() - 1;
+    }
+    ui->openGLWidget->updateInstanceDataMedian(currentColIndexPlaying, currentMonth);
+    QMetaObject::invokeMethod(ui->openGLWidget, "updateVertexBuffers", Qt::QueuedConnection);
+    double yValue = plotVerticalLineOnChart(currentMonth);
+    ui->statusbar->showMessage("Month: " + QString::number(currentMonth) + " Year: " + QString::number(currentMonth / 12) + " Value: " + QString::number(yValue));
 }
 
 
@@ -531,24 +581,128 @@ void MainWindow::on_slider_progress_sliderMoved(int position)
     isRunning = false;
     stopLoop = true;
     ui->bt_run->setText("Run");
-    currentMonth = position * vizData->statsData[currentColIndexPlaying].median.size() / 100;
-    if (currentMonth >= vizData->statsData[currentColIndexPlaying].median.size()) {
-        currentMonth = vizData->statsData[currentColIndexPlaying].median.size() - 1;
-    }
-    ui->openGLWidget->updateInstanceDataMedian(vizData, currentColIndexPlaying, currentMonth);
-    QMetaObject::invokeMethod(ui->openGLWidget, "updateVertexBuffers", Qt::QueuedConnection);
-    ui->statusbar->showMessage("Month: " + QString::number(currentMonth) + " Year: " + QString::number(currentMonth / 12));
-
 }
 
+void MainWindow::plotChart(int currentColIndex){
+
+    // Plot graphs using QCharts
+    if (vizData->statsData[currentColIndex].median.isEmpty()) {
+        return;
+    }
+
+    // Create a QChart object
+    chart = new QChart();
+    chart->setTitle(ui->cb_db_list->currentText());
+
+    // Create a QLineSeries object
+    series = new QLineSeries();
+
+    // Populate the series with the median data
+    for (int month = 0; month < vizData->statsData[currentColIndex].median.size(); month++) {
+        series->append(month, vizData->statsData[currentColIndex].median[month][0]);  // Assuming location 0
+    }
+
+    // Add the series to the chart
+    chart->addSeries(series);
+    chart->legend()->hide();  // Hide the legend
+
+    // Create axes
+    axisX = new QValueAxis;
+    axisX->setTitleText("Month");
+    axisX->setTickCount(20);
+
+    axisY = new QValueAxis;
+
+    // Add the axes to the chart
+    chart->setAxisX(axisX, series);
+    chart->setAxisY(axisY, series);
+
+    chart->setTheme(QChart::ChartThemeDark);
+
+    // Create a QChartView to display the chart
+    ui->gv_chartview->setRenderHint(QPainter::Antialiasing);
+    ui->gv_chartview->setChart(chart);
+}
+
+double MainWindow::plotVerticalLineOnChart(int currentMonth) {
+    if (!chart || !series) {
+        return 0.0;  // Ensure chart and series are initialized before proceeding
+    }
+
+    // If a vertical line already exists, remove it from the chart
+    if (currentVerticalLine) {
+        chart->removeSeries(currentVerticalLine);
+        delete currentVerticalLine;  // Clean up memory
+        currentVerticalLine = nullptr;
+    }
+
+    // If a label exists, remove it from the scene
+    if (valueLabel) {
+        chart->scene()->removeItem(valueLabel);
+        delete valueLabel;  // Clean up memory
+        valueLabel = nullptr;
+    }
+
+    // Get the current range of the Y-axis
+    QValueAxis *axisY = qobject_cast<QValueAxis *>(chart->axisY());
+    if (!axisY) {
+        return 0.0;
+    }
+
+    // Get the min and max values of the Y-axis
+    qreal minY = axisY->min();
+    qreal maxY = axisY->max();
+
+    // Create a new QLineSeries for the vertical line
+    currentVerticalLine = new QLineSeries();
+
+    // Add two points to create a vertical line at the specified month
+    currentVerticalLine->append(currentMonth, minY);  // Point at the bottom
+    currentVerticalLine->append(currentMonth, maxY);  // Point at the top
+
+    // Set the vertical line's appearance (e.g., dashed line, color)
+    QPen linePen(Qt::SolidLine);  // Use a dashed line
+    linePen.setColor(Qt::red);   // Set color to red, for example
+    linePen.setWidth(2);         // Set line width
+    currentVerticalLine->setPen(linePen);
+
+    // Add the vertical line series to the chart
+    chart->addSeries(currentVerticalLine);
+
+    // Attach the axes to the vertical line
+    chart->setAxisX(chart->axisX(), currentVerticalLine);
+    chart->setAxisY(chart->axisY(), currentVerticalLine);
+
+    // Now display the Y value at the point where the vertical line crosses the data series
+    qreal yValue = vizData->statsData[currentColIndexPlaying].median[currentMonth][0];  // Get the Y-value at the specified month
+
+    // Create a label to display the Y-value
+    valueLabel = new QGraphicsSimpleTextItem(QString::number(yValue));
+
+    // Find the position of the label on the chart (convert chart coordinates to scene coordinates)
+    QPointF labelPos = chart->mapToPosition(QPointF(currentMonth, yValue), currentVerticalLine);
+
+    // Set the position of the label slightly above the intersection point
+    valueLabel->setPos(labelPos.x(), labelPos.y() - 20);  // Offset slightly upwards to avoid overlapping with the point
+
+    valueLabel->setPen(QPen(Qt::white));  // Set the text color to black
+
+    // Add the label to the chart's scene
+    chart->scene()->addItem(valueLabel);
+
+    return yValue;
+}
 
 void MainWindow::on_cb_db_list_currentIndexChanged(int index)
 {
     currentColIndexPlaying = index;
+    plotChart(index);
     if(!isRunning){
-        ui->openGLWidget->updateInstanceDataMedian(vizData, currentColIndexPlaying, currentMonth);
+        ui->openGLWidget->updateInstanceDataMedian(currentColIndexPlaying, currentMonth);
         QMetaObject::invokeMethod(ui->openGLWidget, "updateVertexBuffers", Qt::QueuedConnection);
-        ui->statusbar->showMessage("Month: " + QString::number(currentMonth) + " Year: " + QString::number(currentMonth / 12));
+        double yValue = plotVerticalLineOnChart(currentMonth);
+        ui->statusbar->showMessage("Month: " + QString::number(currentMonth) + " Year: " + QString::number(currentMonth / 12) + " Value: " + QString::number(yValue));
     }
+
 }
 

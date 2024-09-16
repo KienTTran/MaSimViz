@@ -6,9 +6,15 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1024</width>
-    <height>720</height>
+    <width>712</width>
+    <height>705</height>
    </rect>
+  </property>
+  <property name="minimumSize">
+   <size>
+    <width>640</width>
+    <height>376</height>
+   </size>
   </property>
   <property name="windowTitle">
    <string>MaSim Visualization</string>
@@ -25,47 +31,6 @@
         <string>Visualization</string>
        </attribute>
        <layout class="QGridLayout" name="gridLayout_3">
-        <item row="0" column="0">
-         <layout class="QGridLayout" name="gridLayout_2">
-          <item row="1" column="0">
-           <widget class="GLWidgetCustom" name="openGLWidget">
-            <property name="enabled">
-             <bool>false</bool>
-            </property>
-           </widget>
-          </item>
-          <item row="0" column="0">
-           <layout class="QHBoxLayout" name="horizontalLayout_4">
-            <item>
-             <widget class="QLineEdit" name="le_sim_path">
-              <property name="toolTip">
-               <string>Input simulation path or use button to select folder</string>
-              </property>
-              <property name="accessibleName">
-               <string/>
-              </property>
-              <property name="accessibleDescription">
-               <string/>
-              </property>
-              <property name="text">
-               <string/>
-              </property>
-              <property name="placeholderText">
-               <string>Type in simulation path then press Enter, or use Browse button</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QPushButton" name="bt_auto_load_folder">
-              <property name="text">
-               <string>Browse</string>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </item>
-         </layout>
-        </item>
         <item row="1" column="0">
          <layout class="QHBoxLayout" name="horizontalLayout">
           <item>
@@ -77,6 +42,13 @@
           </item>
           <item>
            <widget class="QComboBox" name="cb_db_list"/>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="cb_show_chart">
+            <property name="text">
+             <string>Plot</string>
+            </property>
+           </widget>
           </item>
           <item>
            <widget class="QPushButton" name="bt_process">
@@ -132,6 +104,66 @@
           </item>
          </layout>
         </item>
+        <item row="0" column="0">
+         <layout class="QGridLayout" name="gridLayout_2">
+          <item row="0" column="0">
+           <layout class="QHBoxLayout" name="horizontalLayout_4">
+            <item>
+             <widget class="QLineEdit" name="le_sim_path">
+              <property name="toolTip">
+               <string>Input simulation path or use button to select folder</string>
+              </property>
+              <property name="accessibleName">
+               <string/>
+              </property>
+              <property name="accessibleDescription">
+               <string/>
+              </property>
+              <property name="text">
+               <string/>
+              </property>
+              <property name="placeholderText">
+               <string>Type in simulation path then press Enter, or use Browse button</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="bt_auto_load_folder">
+              <property name="text">
+               <string>Browse</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item row="1" column="0">
+           <layout class="QVBoxLayout" name="verticalLayout_5" stretch="2,1">
+            <item>
+             <widget class="GLWidgetCustom" name="openGLWidget">
+              <property name="enabled">
+               <bool>false</bool>
+              </property>
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="minimumSize">
+               <size>
+                <width>0</width>
+                <height>0</height>
+               </size>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QChartView" name="gv_chartview"/>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </item>
        </layout>
       </widget>
       <widget class="QWidget" name="tab_graphs">
@@ -148,7 +180,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1024</width>
+     <width>712</width>
      <height>24</height>
     </rect>
    </property>
@@ -166,6 +198,11 @@
    <class>GLWidgetCustom</class>
    <extends>QOpenGLWidget</extends>
    <header>glwidgetcustom.h</header>
+  </customwidget>
+  <customwidget>
+   <class>QChartView</class>
+   <extends>QGraphicsView</extends>
+   <header>QCharts</header>
   </customwidget>
  </customwidgets>
  <resources/>

@@ -34,8 +34,6 @@ protected:
 
 private:
     void setupShaders();
-    void setupVertexBuffers();
-    void updateVertexData();
     void checkOpenGLError(const QString &functionName);
     void setRasterColor(const QVector3D &color);
 
@@ -61,14 +59,22 @@ private:
     float zoomFactor;
     float panX;
     float panY;
+    float aspectRatio;
 
     bool panning;
     float prevXForPan;
     float prevYForPan;
 
 public:
-    void updateInstanceData(VizData *vizData, int width, int height);
-    void updateInstanceDataMedian(VizData *vizData, int dataIndex, int month);
+    VizData *vizData;
+    float pixelScale;
+
+public:
+    void updateInstanceData(int width, int height);
+    void updateInstanceDataAll(int width, int height);
+    void updateInstanceDataMedian(int dataIndex, int month);
+    void setupVertexBuffers();
+    Q_INVOKABLE void updateVertexData();
     Q_INVOKABLE void updateVertexBuffers();
 };
 

@@ -12,8 +12,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 
-find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets LinguistTools sql openglwidgets concurrent)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets LinguistTools sql openglwidgets concurrent)
+find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets LinguistTools sql openglwidgets concurrent charts)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets LinguistTools sql openglwidgets concurrent charts)
 
 set(TS_FILES MaSimViz_en_US.ts)
 
@@ -64,7 +64,8 @@ endif()
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
-target_link_libraries(MaSimViz PRIVATE Qt${QT_VERSION_MAJOR}::Widgets Qt${QT_VERSION_MAJOR}::Sql Qt${QT_VERSION_MAJOR}::OpenGLWidgets Qt${QT_VERSION_MAJOR}::Concurrent)
+target_link_libraries(MaSimViz PRIVATE Qt${QT_VERSION_MAJOR}::Widgets Qt${QT_VERSION_MAJOR}::Sql Qt${QT_VERSION_MAJOR}::OpenGLWidgets
+    Qt${QT_VERSION_MAJOR}::Concurrent Qt${QT_VERSION_MAJOR}::Charts)
 
 find_package(date CONFIG REQUIRED)
 target_link_libraries(${PROJECT_NAME} PRIVATE date::date date::date-tz)
