@@ -42,7 +42,8 @@ void main() {
 
 GLWidgetCustom::GLWidgetCustom(QWidget *parent)
 {
-    zoomFactor = 1.0f;
+    lastView = std::tuple<float,float,float>(1.0f,1.0f,1.0f);
+    lastProjection = lastView;
     panX = 0.0f;
     panY = 0.0f;
     panning = false;
@@ -50,12 +51,12 @@ GLWidgetCustom::GLWidgetCustom(QWidget *parent)
     setParent(parent);
     setMouseTracking(true);
     setFocusPolicy(Qt::StrongFocus);
-    setCursor(Qt::OpenHandCursor);
     prevXForPan = 0;
     prevYForPan = 0;
 
     pixelScale = 0.01f;
     vizData = new VizData();
+    inspectMode = false;
 }
 
 
@@ -279,6 +280,19 @@ void GLWidgetCustom::paintGL()
     if (!shaderProgram) return;
 
     shaderProgram->bind();
+
+    if(inspectMode){
+        model.setToIdentity();
+        view.setToIdentity();
+        view.translate(0.0f, 0.0f, -2.0f);
+        projection.setToIdentity();
+        aspectRatio = float(width()) / float(height());
+        projection.perspective(45.0f, aspectRatio, 0.1f, 100.0f);
+        panX = 0.0f;
+        panY = 0.0f;
+
+        qDebug() << "Inspect Mode";
+    }
 
     // Pass MVP matrices to the shader
     shaderProgram->setUniformValue("projection", projection);
@@ -528,15 +542,42 @@ void GLWidgetCustom::mousePressEvent(QMouseEvent *event)
 {
     switch(event->button())
     {
-    case Qt::RightButton:
-        // Handle other mouse buttons if needed
+    case Qt::LeftButton:
+        {
+            // Get the click coordinates in the widget
+            int mouseX = event->x();
+            int mouseY = event->y();
+
+            // Get the width and height of the widget (OpenGL canvas)
+            int widgetWidth = width();
+            int widgetHeight = height();
+
+            // Assuming the grid is rendered with fixed size squares and the whole widget is used for rendering
+            int numRows = vizData->rasterData->nrows; // number of rows in your grid
+            int numCols = vizData->rasterData->nrows; // number of columns in your grid
+
+            // Size of each square in terms of widget coordinates
+            int squareWidth = widgetWidth / numCols;
+            int squareHeight = widgetHeight / numRows;
+
+            // Compute the row and column based on the click position
+            int clickedCol = mouseX / squareWidth;
+            int clickedRow = mouseY / squareHeight;
+
+            // Note: The OpenGL coordinate system may require flipping the Y axis (depending on how you render)
+            clickedRow = numRows - 1 - clickedRow; // If necessary to flip Y axis
+
+            // Output the result (you can also trigger an event or update something on screen)
+            qDebug() << "Clicked on square at: Row:" << clickedRow << " Col:" << clickedCol;
+
+            emit mouseMoved(QPoint(clickedCol, clickedRow));
+        }
         break;
 
-    case Qt::LeftButton:
+    case Qt::RightButton:
         if (!panning)
         {
             panning = true;
-            setCursor(Qt::ClosedHandCursor);  // Change cursor when panning
             prevXForPan = event->position().x();
             prevYForPan = event->position().y();
         }
@@ -552,7 +593,6 @@ void GLWidgetCustom::mouseMoveEvent(QMouseEvent *event)
 {
     if (!panning)
     {
-        setCursor(Qt::OpenHandCursor);
         return;
     }
 

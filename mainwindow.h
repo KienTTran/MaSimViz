@@ -62,6 +62,8 @@ private slots:
 
     void on_cb_db_list_currentIndexChanged(int index);
 
+    void onMouseMoved(const QPoint &pos);
+
 private:
     Ui::MainWindow *ui;
     QString statusMessage = "";
@@ -90,6 +92,7 @@ private:
     void showWhenPause();
     void plotChart(int currentColIndex);
     double plotVerticalLineOnChart(int currenMonth);
+    void displayDataInTable(int col, int row);
 
 private:
     bool all_rasters_exist = false;
@@ -98,5 +101,7 @@ private:
     bool isRunning = false;             // Global or class member to track play/pause state
     int currentMonth = 0;
     int currentColIndexPlaying = 0;
+
+    bool inspectMode = false;
 };
 #endif // MAINWINDOW_H

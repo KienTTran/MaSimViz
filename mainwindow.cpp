@@ -26,6 +26,8 @@
 #include <QHeaderView>
 #include <QDebug>
 #include <QList>
+#include <QStandardItemModel>
+
 #include "loadersqlite.h"
 #include "loaderyml.h"
 #include "loaderraster.h"
@@ -44,6 +46,8 @@ MainWindow::MainWindow(QWidget *parent)
     stopLoop = false;
     ui->cb_show_chart->setHidden(true);
     ui->gv_chartview->setHidden(true);
+    ui->tableView->setHidden(true);
+    QObject::connect(ui->openGLWidget, &GLWidgetCustom::mouseMoved, this, &MainWindow::onMouseMoved);
 }
 
 MainWindow::~MainWindow()
@@ -70,7 +74,7 @@ QStringList searchForFilesWithPattern(const QString &directoryPath, QString patt
 }
 
 // Function to display sqlData in a dialog with checkable columns in a checklist per tab
-void displaySqlDataInDialogWithChecklist(VizData* vizData, QWidget* parentWidget = nullptr) {
+bool displaySqlDataInDialogWithChecklist(VizData* vizData, QWidget* parentWidget = nullptr) {
     // Create the dialog
     QDialog* dialog = new QDialog(parentWidget);
     dialog->setWindowTitle("SQL Data Viewer with Checklists");
@@ -192,8 +196,11 @@ void displaySqlDataInDialogWithChecklist(VizData* vizData, QWidget* parentWidget
         for (const QString& tableName : vizData->sqlData.tableColumnMap.keys()) {
             qDebug() << "Table:" << tableName << " Columns:" << vizData->sqlData.tableColumnMap[tableName];
         }
+        return true;
     } else {
+        vizData->sqlData.tableColumnMap.clear();
         qDebug() << "Dialog rejected";  // Add this for debugging if Cancel is pressed or dialog is closed
+        return false;
     }
 }
 
@@ -283,15 +290,33 @@ void MainWindow::on_bt_auto_load_folder_clicked()
 
 void MainWindow::on_cb_raster_list_activated(int index)
 {
-    if(vizData->rasterData->values.isEmpty()){
-        QMessageBox::information(this, "Information", "No raster data loaded.");
-        loader = nullptr;
-        loader = new LoaderRaster();
-        loader->loadFileSingle(ascFileList[index], vizData, nullptr, nullptr);
-        ui->openGLWidget->vizData = vizData;
-        ui->openGLWidget->updateInstanceData(ui->openGLWidget->width(),ui->openGLWidget->height());
-        ui->openGLWidget->updateVertexBuffers();
-    }
+    // qDebug() << "Activated:" << index;
+
+    // if(!vizData->rasterData->values.isEmpty()){
+    //     loader = nullptr;
+    //     loader = new LoaderRaster();
+    //     loader->loadFileSingle(ascFileList[index], vizData, nullptr, nullptr);
+    //     ui->openGLWidget->vizData = vizData;
+    //     ui->openGLWidget->updateInstanceData(ui->openGLWidget->width(),ui->openGLWidget->height());
+    //     ui->openGLWidget->updateVertexBuffers();
+    //     ui->openGLWidget->updateVertexBuffers();
+
+    //     qDebug() << "ncols:" << vizData->rasterData->ncols << " nrows:" << vizData->rasterData->nrows;
+
+    //     QStandardItemModel *model = new QStandardItemModel(vizData->rasterData->ncols, vizData->rasterData->nrows, this);
+
+    //     for(int i = 0; i < vizData->rasterData->ncols; i++){
+    //         for(int j = 0; j < vizData->rasterData->nrows; j++){
+    //             model->setItem(i,j,new QStandardItem(QString::number(vizData->rasterData->values[i][j])));
+    //             ui->tableView_2->setRowHeight(j,10);
+    //         }
+    //         ui->tableView_2->setColumnWidth(i,10);
+    //     }
+    //     ui->tableView_2->setModel(model);
+    // }
+    // else{
+    //     QMessageBox::information(this, "Information", "No raster data loaded.");
+    // }
 }
 
 
@@ -305,8 +330,63 @@ void MainWindow::on_cb_raster_list_currentIndexChanged(int index)
     ui->openGLWidget->updateVertexBuffers();
 }
 
+void MainWindow::onMouseMoved(const QPoint &pos)
+{
+    // Convert the mouse position into the index of the data in vizData->statsData.median
+    // int dataX = pos.x() / ui->openGLWidget->width() * vizData->statsData[currentColIndexPlaying].median.size(); // Assuming mouse maps to data grid
+    // int dataY = pos.y() / ui->openGLWidget->height() * vizData->statsData[currentColIndexPlaying].median[0].size();
+
+    // Display the data in the table
+    // displayDataInTable(dataX, dataY);
+
+    displayDataInTable(pos.x(),pos.y());
+}
+
+
+void MainWindow::displayDataInTable(int col, int row)
+{
+    qDebug() << "Displaying data at:" << col << row;
+    ui->statusbar->showMessage(statusMessage + " Displaying data at:" + QString::number(col) + " " + QString::number(row));
+    // // 3x3 table view, get the 9 cells around the (col, row) from vizData->statsData.median
+    // QStandardItemModel *model = new QStandardItemModel(3, 3, this); // 3x3 table model
+
+    // for (int i = -1; i <= 1; ++i) {
+    //     for (int j = -1; j <= 1; ++j) {
+    //         int currentRow = row + i;
+    //         int currentCol = col + j;
+
+    //         // Ensure we don't go out of bounds
+    //         if (currentRow >= 0 && currentRow < vizData->statsData[currentColIndexPlaying].median.size() &&
+    //             currentCol >= 0 && currentCol < vizData->statsData[currentColIndexPlaying].median[0].size()) {
+
+    //             double value = vizData->statsData[0].median[currentRow][currentCol];
+    //             model->setItem(i + 1, j + 1, new QStandardItem(QString::number(value)));
+    //         } else {
+    //             model->setItem(i + 1, j + 1, new QStandardItem("N/A"));
+    //         }
+    //     }
+    // }
+    // ui->tableView->setModel(model);
+}
+
 void MainWindow::on_bt_process_clicked()
 {
+    loader = nullptr;
+    loader = new LoaderYML();
+    loader->loadFileSingle(ymlFileList[0], vizData, nullptr, nullptr);
+
+    loader = nullptr;
+    loader = new LoaderSQLite();
+
+    loader->loadFileSingle(dbFileList[0], vizData, nullptr, nullptr);
+
+    vizData->sqlData.locationID = "locationid";
+    vizData->sqlData.monthID = "monthlydataid";
+
+    if(!displaySqlDataInDialogWithChecklist(vizData, this)){
+        return;
+    }
+
     disabeInputWidgets();
     ui->progress_bar->setHidden(false);
     ui->slider_progress->setHidden(true);
@@ -321,20 +401,6 @@ void MainWindow::on_bt_process_clicked()
     isRunning = false;
     stopLoop = false;
     ui->statusbar->showMessage("Loading database files...");
-
-    loader = nullptr;
-    loader = new LoaderYML();
-    loader->loadFileSingle(ymlFileList[0], vizData, nullptr, nullptr);
-
-    loader = nullptr;
-    loader = new LoaderSQLite();
-
-    loader->loadFileSingle(dbFileList[0], vizData, nullptr, nullptr);
-
-    vizData->sqlData.locationID = "locationid";
-    vizData->sqlData.monthID = "monthlydataid";
-
-    displaySqlDataInDialogWithChecklist(vizData, this);
 
     if(vizData->sqlData.tableColumnMap.isEmpty()){
         QMessageBox::information(this, "Information", "No columns selected.");
@@ -399,6 +465,16 @@ void MainWindow::on_bt_process_clicked()
                                                                        QObject::connect(ui->cb_show_chart, &QCheckBox::stateChanged, this, [=](int state) {
                                                                            plotChart(currentColIndexPlaying);
                                                                            ui->gv_chartview->setHidden(state == Qt::Unchecked);
+                                                                           ui->tableView->setHidden(state == Qt::Unchecked);
+                                                                           if(state == Qt::Checked){
+                                                                               ui->openGLWidget->inspectMode = true;
+                                                                               double yValue = plotVerticalLineOnChart(currentMonth);
+                                                                               ui->statusbar->showMessage("Month: " + QString::number(currentMonth) + " Year: " + QString::number(currentMonth / 12) + " Value: " + QString::number(yValue));
+
+                                                                           }else{
+                                                                               ui->openGLWidget->inspectMode = false;
+                                                                           }
+                                                                           ui->openGLWidget->update();
                                                                        });
 
                                                                        showWhenPlay();
@@ -685,7 +761,8 @@ double MainWindow::plotVerticalLineOnChart(int currentMonth) {
     // Set the position of the label slightly above the intersection point
     valueLabel->setPos(labelPos.x(), labelPos.y() - 20);  // Offset slightly upwards to avoid overlapping with the point
 
-    valueLabel->setPen(QPen(Qt::white));  // Set the text color to black
+    valueLabel->setPen(QPen(Qt::white));
+    valueLabel->setBrush(QBrush(Qt::white));
 
     // Add the label to the chart's scene
     chart->scene()->addItem(valueLabel);

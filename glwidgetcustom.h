@@ -56,7 +56,8 @@ private:
 
     // For panning and zooming
     QPoint lastMousePosition;
-    float zoomFactor;
+    std::tuple<float,float,float> lastView;
+    std::tuple<float,float,float> lastProjection;
     float panX;
     float panY;
     float aspectRatio;
@@ -65,9 +66,11 @@ private:
     float prevXForPan;
     float prevYForPan;
 
+
 public:
     VizData *vizData;
     float pixelScale;
+    bool inspectMode;
 
 public:
     void updateInstanceData(int width, int height);
@@ -76,6 +79,9 @@ public:
     void setupVertexBuffers();
     Q_INVOKABLE void updateVertexData();
     Q_INVOKABLE void updateVertexBuffers();
+
+signals:
+    void mouseMoved(const QPoint &pos);
 };
 
 
