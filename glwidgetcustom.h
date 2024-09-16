@@ -31,11 +31,13 @@ protected:
     void mouseMoveEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
+    // void paintEvent(QPaintEvent *event) override;
 
 private:
     void setupShaders();
     void checkOpenGLError(const QString &functionName);
     void setRasterColor(const QVector3D &color);
+    void renderTextAboveSquare(QPainter &painter, int col, int row, float x, float y);
 
     QOpenGLShaderProgram *shaderProgram;
     QOpenGLBuffer vbo;
@@ -65,16 +67,21 @@ private:
     bool panning;
     float prevXForPan;
     float prevYForPan;
+    float distance;
 
 
 public:
     VizData *vizData;
     float pixelScale;
+    float initPixelScaleX;
+    float initPixelScaleY;
+    float pixelScaleX;
+    float pixelScaleY;
     bool inspectMode;
 
 public:
-    void updateInstanceData(int width, int height);
-    void updateInstanceDataAll(int width, int height);
+    void updateInstanceData();
+    void updateInstanceDataAll();
     void updateInstanceDataMedian(int dataIndex, int month);
     void setupVertexBuffers();
     Q_INVOKABLE void updateVertexData();

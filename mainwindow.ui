@@ -139,53 +139,32 @@
           <item row="1" column="0">
            <layout class="QGridLayout" name="gridLayout_4" rowstretch="2,0">
             <item row="1" column="0">
-             <layout class="QHBoxLayout" name="horizontalLayout_8" stretch="3,1,0">
+             <layout class="QHBoxLayout" name="horizontalLayout_8" stretch="3">
               <item>
                <widget class="QChartView" name="gv_chartview">
                 <property name="minimumSize">
                  <size>
                   <width>0</width>
-                  <height>0</height>
+                  <height>240</height>
                  </size>
                 </property>
                </widget>
               </item>
+             </layout>
+            </item>
+            <item row="0" column="0">
+             <layout class="QHBoxLayout" name="horizontalLayout_3" stretch="0,1">
               <item>
-               <widget class="QTableView" name="tableView">
-                <property name="baseSize">
-                 <size>
-                  <width>0</width>
-                  <height>0</height>
-                 </size>
-                </property>
-                <property name="wordWrap">
+               <widget class="GLWidgetCustom" name="openGLWidget">
+                <property name="enabled">
                  <bool>false</bool>
                 </property>
                </widget>
               </item>
               <item>
-               <layout class="QGridLayout" name="gridLayout_5"/>
+               <widget class="GraphicsViewCustom" name="graphicsView"/>
               </item>
              </layout>
-            </item>
-            <item row="0" column="0">
-             <widget class="GLWidgetCustom" name="openGLWidget">
-              <property name="enabled">
-               <bool>false</bool>
-              </property>
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-                <horstretch>0</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="minimumSize">
-               <size>
-                <width>0</width>
-                <height>0</height>
-               </size>
-              </property>
-             </widget>
             </item>
            </layout>
           </item>
@@ -230,6 +209,11 @@
    <class>QChartView</class>
    <extends>QGraphicsView</extends>
    <header>QCharts</header>
+  </customwidget>
+  <customwidget>
+   <class>GraphicsViewCustom</class>
+   <extends>QGraphicsView</extends>
+   <header>graphicsviewcustom.h</header>
   </customwidget>
  </customwidgets>
  <resources/>

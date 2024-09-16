@@ -22,6 +22,7 @@ out vec3 fragColor;  // Output color from raster data
 void main() {
     // Apply model, view, and projection transformations
     gl_Position = projection * view * model * vec4(position.x + offset.x, position.y + offset.y, position.z, 1.0);
+    // gl_Position = projection * view * model * vec4(position.x, position.y, position.z, 1.0);
     fragColor = instanceColor;  // Pass the color to the fragment shader
     // fragColor = vec3(0.0f, 1.0f, 0.0f);  // Pass the color to the fragment shader
 }
@@ -42,19 +43,22 @@ void main() {
 
 GLWidgetCustom::GLWidgetCustom(QWidget *parent)
 {
+    setParent(parent);
+    setMouseTracking(true);
+    setFocusPolicy(Qt::StrongFocus);
     lastView = std::tuple<float,float,float>(1.0f,1.0f,1.0f);
     lastProjection = lastView;
     panX = 0.0f;
     panY = 0.0f;
+    pixelScale = 0.0001f;
+    initPixelScaleX = 0.0f;
+    initPixelScaleY = 0.0f;
+    pixelScaleX = 0.0f;
+    pixelScaleY = 0.0f;
     panning = false;
     instanceCount = 0;
-    setParent(parent);
-    setMouseTracking(true);
-    setFocusPolicy(Qt::StrongFocus);
     prevXForPan = 0;
     prevYForPan = 0;
-
-    pixelScale = 0.01f;
     vizData = new VizData();
     inspectMode = false;
 }
@@ -85,8 +89,7 @@ void GLWidgetCustom::initializeGL()
     model.setToIdentity();
     view.setToIdentity();
     view.translate(0.0f, 0.0f, -2.0f);  // Move the camera back a bit
-
-    // Initialize projection matrix (will be set in resizeGL())
+    projection.setToIdentity();
 
     // Output OpenGL context information for debugging
     qDebug() << "OpenGL context version:" << reinterpret_cast<const char*>(glGetString(GL_VERSION));
@@ -129,6 +132,12 @@ void GLWidgetCustom::setupVertexBuffers()
     vbo.setUsagePattern(QOpenGLBuffer::StaticDraw);
 
     updateVertexData();  // Populate the vertex data
+
+
+    qDebug() << "initPixelScaleX before: " << initPixelScaleX << " initPixelScaleY: " << initPixelScaleY;
+    initPixelScaleX = pixelScaleX;
+    initPixelScaleY = pixelScaleY;
+    qDebug() << "initPixelScaleX after: " << initPixelScaleX << " initPixelScaleY: " << initPixelScaleY;
 
     // Allocate data to VBO
     vbo.allocate(vertices.constData(), vertices.size() * sizeof(float));
@@ -209,24 +218,22 @@ void GLWidgetCustom::setupVertexBuffers()
 
 void GLWidgetCustom::updateVertexData()
 {
-    double aspectRatio = 1.0;
+    // qDebug() << "updateVertexData aspectRatio: " << aspectRatio << " pixelScale: " << pixelScale;
+
     if(width() > height())
         aspectRatio = static_cast<double>(width()) / static_cast<double>(height());
     else
         aspectRatio = static_cast<double>(height()) / static_cast<double>(width());
 
-    double pixelScaleX = pixelScale;
-    double pixelScaleY = pixelScale;
-    // if(vizData->rasterData->ncols > vizData->rasterData->nrows)
-    //     pixelScaleX *= aspectRatio;
-    // else
-    //     pixelScaleY *= aspectRatio;
+    pixelScaleX = width() * pixelScale;
+    pixelScaleY = height() * pixelScale;
+    if(vizData->rasterData->ncols > vizData->rasterData->nrows)
+        pixelScaleX *= aspectRatio;
+    else
+        pixelScaleY *= aspectRatio;
 
-    // Calculate the pixel scale based on the aspect ratio
-    qDebug() << "Pixel scale:" << pixelScale;
     // Define a small square in normalized device coordinates (NDC)
     vertices.clear();  // Scale down the square size to fit more on the screen
-
 
     // First triangle (Top-left to bottom-right)
     // Vertex 1 (Top left)
@@ -268,7 +275,17 @@ void GLWidgetCustom::resizeGL(int w, int h)
 
     // Update the projection matrix to account for window size (perspective projection)
     projection.setToIdentity();
-    aspectRatio = float(w) / float(h);
+    // double oldAspectRatio = aspectRatio;
+    // aspectRatio = float(w) / float(h);
+    // if (aspectRatio != oldAspectRatio) {
+    //     qDebug() << "Aspect ratio changed from" << oldAspectRatio << "to" << aspectRatio << "at" << (aspectRatio/oldAspectRatio);
+    //     if(aspectRatio > oldAspectRatio){
+    //         pixelScale = pixelScale / (aspectRatio/oldAspectRatio);
+    //     }
+    //     else{
+    //         pixelScale = pixelScale * (oldAspectRatio/aspectRatio);
+    //     }
+    // }
     projection.perspective(45.0f, aspectRatio, 0.1f, 100.0f);  // FOV, aspect ratio, near, far planes
 }
 
@@ -306,41 +323,9 @@ void GLWidgetCustom::paintGL()
     shaderProgram->release();
 }
 
-QVector3D interpolate(const QVector3D& color1, const QVector3D& color2, float factor) {
-    return (1.0f - factor) * color1 + factor * color2;
-}
-
-// Define extended color stops for a more detailed gradient
-QVector<QVector3D> colorStops = {
-    QVector3D(0.1f, 0.1f, 0.1f),  // Blue
-    QVector3D(0.0f, 0.25f, 0.0f),  // Midpoint between Blue and Light Blue
-    QVector3D(0.0f, 0.5f, 1.0f),  // Light Blue
-    QVector3D(0.0f, 0.75f, 1.0f),  // Midpoint between Light Blue and Cyan
-    QVector3D(0.0f, 1.0f, 1.0f),  // Cyan
-    QVector3D(0.0f, 1.0f, 0.75f),  // Midpoint between Cyan and Light Green-Cyan
-    QVector3D(0.0f, 1.0f, 0.5f),  // Light Green-Cyan
-    QVector3D(0.0f, 1.0f, 0.25f),  // Midpoint between Light Green-Cyan and Green
-    QVector3D(0.0f, 1.0f, 0.0f),  // Green
-    QVector3D(0.25f, 1.0f, 0.0f),  // Midpoint between Green and Yellow-Green
-    QVector3D(0.5f, 1.0f, 0.0f),  // Yellow-Green
-    QVector3D(0.75f, 1.0f, 0.0f),  // Midpoint between Yellow-Green and Yellow
-    QVector3D(1.0f, 1.0f, 0.0f),  // Yellow
-    QVector3D(1.0f, 0.75f, 0.0f),  // Midpoint between Yellow and Orange
-    QVector3D(1.0f, 0.5f, 0.0f),  // Orange
-    QVector3D(1.0f, 0.25f, 0.0f),  // Midpoint between Orange and Red
-    QVector3D(1.0f, 0.0f, 0.0f),  // Red
-    QVector3D(0.75f, 0.0f, 0.25f),  // Midpoint between Red and Magenta-Purple
-    QVector3D(0.5f, 0.0f, 0.5f),  // Magenta-Purple
-    QVector3D(0.5f, 0.0f, 0.75f),  // Midpoint between Magenta-Purple and Purple
-    QVector3D(0.5f, 0.0f, 1.0f),  // Purple
-    // QVector3D(0.25f, 0.0f, 1.0f),  // Midpoint between Purple and Blue
-    // QVector3D(0.0f, 0.0f, 1.0f)   // Blue
-};
-
-void GLWidgetCustom::updateInstanceData(int width, int height)
+void GLWidgetCustom::updateInstanceData()
 {
-
-    qDebug() << "updateInstanceData asPectRatio: " << aspectRatio;
+    // qDebug() << "updateInstanceData aspectRatio: " << aspectRatio << " pixelScale: " << pixelScale;
 
     // Set instance offsets based on rasterData
     instanceOffsets.clear();
@@ -360,15 +345,15 @@ void GLWidgetCustom::updateInstanceData(int width, int height)
         }
     }
 
-    // OpenGL normalized device coordinate ranges are [-1, 1]
-    float screenWidth = width;
-    float screenHeight = height;
+    // // OpenGL normalized device coordinate ranges are [-1, 1]
+    // float screenWidth = width();
+    // float screenHeight = height();
 
-    double aspectRatio = 1.0;
-    // if(width > height)
-    //     aspectRatio = static_cast<double>(width) / static_cast<double>(height);
+    // // double aspectRatio = 1.0;
+    // if(screenWidth > screenHeight)
+    //     aspectRatio = static_cast<double>(screenWidth) / static_cast<double>(screenHeight);
     // else
-    //     aspectRatio = static_cast<double>(height) / static_cast<double>(width);
+    //     aspectRatio = static_cast<double>(screenHeight) / static_cast<double>(screenWidth);
 
     // Loop through rasterData to get valid positions and set colors based on value
     for (int row = 0; row < vizData->rasterData->values.size(); ++row) {
@@ -377,29 +362,25 @@ void GLWidgetCustom::updateInstanceData(int width, int height)
 
             // Only consider points that are not equal to nodata_value
             if (value != vizData->rasterData->nodata_value) {
-                // Scale col to OpenGL range [-1, 1] and account for aspect ratio
-                float offsetX = (2.0f * col / static_cast<float>(vizData->rasterData->ncols) - 1.0f);
-                // Scale row to OpenGL range [-1, 1] and invert y-axis
-                float offsetY = 1.0f - 2.0f * row / static_cast<float>(vizData->rasterData->nrows);
-
-                if(vizData->rasterData->ncols > vizData->rasterData->nrows)
-                    offsetX *= aspectRatio;
-                else
-                    offsetY *= aspectRatio;
+                // Calculate the offset position for each square based on pixel scale
+                float offsetX = (-1.0f + (col + 0.5f) * initPixelScaleX);
+                float offsetY = (1.0f - (row + 0.5f) * initPixelScaleY);
 
                 // Add the offsets to the instanceOffsets list
                 instanceOffsets.append(offsetX);
                 instanceOffsets.append(offsetY);
 
-                vizData->rasterData->locationPair[instanceCount] = std::make_pair(row, col);
+                vizData->rasterData->locationPair1DTo2D[instanceCount] = std::make_pair(row, col);
+                vizData->rasterData->locationPair2DTo1D[std::make_pair(row, col)] = instanceCount;
                 // Increment instance count for each valid point
                 instanceCount++;
 
                 // Normalize the value to range [0, 1] based on min and max values
                 float normalizedValue = (static_cast<float>(value) - minValue) / (maxValue - minValue);
 
+
                 // Determine which color stop range this value falls into
-                int nColorSteps = colorStops.size() - 1;
+                int nColorSteps = vizData->colorStops.size() - 1;
                 float stepSize = 1.0f / nColorSteps;
                 int lowerStep = qFloor(normalizedValue / stepSize);
                 float factor = (normalizedValue - lowerStep * stepSize) / stepSize;
@@ -411,100 +392,20 @@ void GLWidgetCustom::updateInstanceData(int width, int height)
                 }
 
                 // Interpolate between the two adjacent colors
-                QVector3D color = interpolate(colorStops[lowerStep], colorStops[lowerStep + 1], factor);
+                QVector3D color = vizData->interpolate(lowerStep, factor);
 
                 instanceColors.append(color);
             }
         }
     }
-
 
     vizData->rasterData->locationRaster = instanceCount;
     qDebug() << "Number of valid data points:" << instanceCount;
 }
 
 
-void GLWidgetCustom::updateInstanceDataAll(int width, int height)
+void GLWidgetCustom::updateInstanceDataAll()
 {
-    // Set instance offsets based on rasterData
-    instanceOffsets.clear();
-    instanceColors.clear();
-    instanceCount = 0;  // Reset instance count
-
-    float minValue = std::numeric_limits<float>::max();
-    float maxValue = std::numeric_limits<float>::min();
-
-    // Calculate min and max values in rasterData to normalize the data
-    for (const auto &row : vizData->rasterDataAll->values) {
-        for (double value : row) {
-            if (value != vizData->rasterDataAll->nodata_value) {
-                minValue = std::min(minValue, static_cast<float>(value));
-                maxValue = std::max(maxValue, static_cast<float>(value));
-            }
-        }
-    }
-
-    // OpenGL normalized device coordinate ranges are [-1, 1]
-    float screenWidth = width;
-    float screenHeight = height;
-
-    double aspectRatio = 1.0;
-    if(width > height)
-        aspectRatio = static_cast<double>(width) / static_cast<double>(height);
-    else
-        aspectRatio = static_cast<double>(height) / static_cast<double>(width);
-
-    // Loop through rasterData to get valid positions and set colors based on value
-    for (int row = 0; row < vizData->rasterDataAll->values.size(); ++row) {
-        for (int col = 0; col < vizData->rasterDataAll->values[row].size(); ++col) {
-            double value = vizData->rasterDataAll->values[row][col];
-
-            // Only consider points that are not equal to nodata_value
-            if (value != vizData->rasterDataAll->nodata_value) {
-                // Scale col to OpenGL range [-1, 1] and account for aspect ratio
-                float offsetX = (2.0f * col / static_cast<float>(vizData->rasterDataAll->ncols) - 1.0f);
-                // Scale row to OpenGL range [-1, 1] and invert y-axis
-                float offsetY = 1.0f - 2.0f * row / static_cast<float>(vizData->rasterDataAll->nrows);
-
-                if(vizData->rasterDataAll->ncols > vizData->rasterDataAll->nrows)
-                    offsetX *= aspectRatio;
-                else
-                    offsetY *= aspectRatio;
-
-                // Add the offsets to the instanceOffsets list
-                instanceOffsets.append(offsetX);
-                instanceOffsets.append(offsetY);
-
-                vizData->rasterDataAll->locationPair[instanceCount] = std::make_pair(row, col);
-                // Increment instance count for each valid point
-                instanceCount++;
-
-                // Normalize the value to range [0, 1] based on min and max values
-                float normalizedValue = (static_cast<float>(value) - minValue) / (maxValue - minValue);
-
-                // Determine which color stop range this value falls into
-                int nColorSteps = colorStops.size() - 1;
-                float stepSize = 1.0f / nColorSteps;
-                int lowerStep = qFloor(normalizedValue / stepSize);
-                float factor = (normalizedValue - lowerStep * stepSize) / stepSize;
-
-                // Ensure we don't go out of bounds
-                if (lowerStep >= nColorSteps) {
-                    lowerStep = nColorSteps - 1;
-                    factor = 1.0f;
-                }
-
-                // Interpolate between the two adjacent colors
-                QVector3D color = interpolate(colorStops[lowerStep], colorStops[lowerStep + 1], factor);
-
-                instanceColors.append(color);
-            }
-        }
-    }
-
-
-    vizData->rasterDataAll->locationRaster = instanceCount;
-    qDebug() << "Number of valid data points:" << instanceCount;
 }
 
 void GLWidgetCustom::updateVertexBuffers(){
@@ -630,7 +531,7 @@ void GLWidgetCustom::mouseReleaseEvent(QMouseEvent *event)
 void GLWidgetCustom::wheelEvent(QWheelEvent *event)
 {
     // Adjust the zoom sensitivity
-    float delta = event->angleDelta().y() / 500.f;  // Increase zoom sensitivity slightly for better response
+    float delta = event->angleDelta().y() / 250.f;  // Increase zoom sensitivity slightly for better response
 
     // Retrieve the current distance (z-axis value) from the view matrix
     float distance = view.column(3).z();
@@ -641,7 +542,7 @@ void GLWidgetCustom::wheelEvent(QWheelEvent *event)
     distance += delta;
 
     // Clamp the zoom range to prevent too much zoom in/out
-    distance = qMin(-0.2f, qMax(-5.0f, distance));  // Keep the distance negative for proper zooming
+    distance = qMin(-1.0f, qMax(-20.0f, distance));  // Keep the distance negative for proper zooming
 
     // qDebug() << "After Zoom: Distance =" << distance;
 
@@ -679,7 +580,7 @@ void GLWidgetCustom::updateInstanceDataMedian(int dataIndex, int month)
         }
 
         // Determine which color stop range this value falls into based on the value itself
-        int nColorSteps = colorStops.size() - 1;
+        int nColorSteps = vizData->colorStops.size() - 1;
         double stepSize = (maxValue - minValue) / nColorSteps;
         int lowerStep = qFloor((value - minValue) / stepSize);
         float factor = (value - (minValue + lowerStep * stepSize)) / stepSize;
@@ -691,7 +592,7 @@ void GLWidgetCustom::updateInstanceDataMedian(int dataIndex, int month)
         }
 
         // Interpolate between the two adjacent colors
-        QVector3D color = interpolate(colorStops[lowerStep], colorStops[lowerStep + 1], factor);
+        QVector3D color = vizData->interpolate(lowerStep,factor);
 
         instanceColors.append(color);
 

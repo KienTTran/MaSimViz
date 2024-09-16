@@ -14,17 +14,13 @@
 #include <QFutureWatcher>
 #include <atomic>
 
-#include <QChartView>
-#include <QtCharts/QChart>
-#include <QtCharts/QChartView>
-#include <QtCharts/QLineSeries>
-#include <QtCharts/QValueAxis>
 
 #include "loader.h"
 #include "vizdata.h"
 #include "graphicsviewcustom.h"
 #include "glwidgetcustom.h"
 #include "dataprocessor.h"
+#include "chartcustom.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -46,8 +42,6 @@ protected:
 private slots:
     void on_bt_auto_load_folder_clicked();
 
-    void on_cb_raster_list_activated(int index);
-
     void on_cb_raster_list_currentIndexChanged(int index);
 
     void on_bt_process_clicked();
@@ -64,6 +58,9 @@ private slots:
 
     void onMouseMoved(const QPoint &pos);
 
+public slots:
+    void onSquareClicked(const QPointF &pos);
+
 private:
     Ui::MainWindow *ui;
     QString statusMessage = "";
@@ -72,26 +69,16 @@ private:
     QStringList dbFileList;
     QStringList ymlFileList;
     QStringList csvFileList;
-    QList<GraphicsViewCustom*> graphicsViewCustomList;
-    QList<QGraphicsScene*> graphicsSceneList;
-    QList<QSlider*> zoomSliderList;
-    GLWidgetCustom *glWidgetCustom;
+    QGraphicsScene *scene;
     VizData *vizData;
     DataProcessor *dataProcessor;
-    QChart *chart;
-    QLineSeries *series;
-    QValueAxis *axisX;
-    QValueAxis *axisY;
-    QLineSeries *currentVerticalLine = nullptr;
-    QGraphicsSimpleTextItem *valueLabel = nullptr;
+    ChartCustom *chart;
 
 private:
     void disabeInputWidgets();
     void enableInputWidgets();
     void showWhenPlay();
     void showWhenPause();
-    void plotChart(int currentColIndex);
-    double plotVerticalLineOnChart(int currenMonth);
     void displayDataInTable(int col, int row);
 
 private:
@@ -101,7 +88,11 @@ private:
     bool isRunning = false;             // Global or class member to track play/pause state
     int currentMonth = 0;
     int currentColIndexPlaying = 0;
+    int currentLocationSelected = 0;
+    QPair<int,int> currenColRowSelected = qMakePair(0,0);
 
     bool inspectMode = false;
+
+
 };
 #endif // MAINWINDOW_H
