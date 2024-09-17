@@ -3,11 +3,12 @@
 
 #include <QList>
 #include <vector>
-#include <functional> // for std::function
 
+#include <QObject>
 #include "vizdata.h"
 
-class DataProcessor {
+class DataProcessor : public QObject{
+    Q_OBJECT
 public:
     // Constructor (optional)
     DataProcessor() {}

@@ -1,124 +1,124 @@
+
+#include <QRandomGenerator>
+
 #include "chartcustom.h"
 
 ChartCustom::ChartCustom(QObject *parent)
     : QObject{parent}
-{}
-
-
-void ChartCustom::plotVerticalLineOnChart(VizData *vizData, int colIndex, int locIndex, int month) {
-    if (!chart || !series) {
-        emit valueAtVerticalLineChanged(0.0);
-        return;  // Ensure chart and series are initialized before proceeding
-    }
-
-    // If a vertical line already exists, remove it from the chart
-    if (currentVerticalLine) {
-        chart->removeSeries(currentVerticalLine);
-        delete currentVerticalLine;  // Clean up memory
-        currentVerticalLine = nullptr;
-    }
-
-    // If a label exists, remove it from the scene
-    if (valueLabel) {
-        chart->scene()->removeItem(valueLabel);
-        delete valueLabel;  // Clean up memory
-        valueLabel = nullptr;
-    }
-
-    // Get the current range of the Y-axis
-    QValueAxis *axisY = qobject_cast<QValueAxis *>(chart->axisY());
-    if (!axisY) {
-        emit valueAtVerticalLineChanged(0.0);
-        return;
-    }
-
-    // Get the min and max values of the Y-axis
-    qreal minY = axisY->min();
-    qreal maxY = axisY->max();
-
-    // Create a new QLineSeries for the vertical line
-    currentVerticalLine = new QLineSeries();
-
-    // Add two points to create a vertical line at the specified month
-    currentVerticalLine->append(month, minY);  // Point at the bottom
-    currentVerticalLine->append(month, maxY);  // Point at the top
-
-    // Set the vertical line's appearance (e.g., dashed line, color)
-    QPen linePen(Qt::SolidLine);  // Use a dashed line
-    linePen.setColor(Qt::red);   // Set color to red, for example
-    linePen.setWidth(2);         // Set line width
-    currentVerticalLine->setPen(linePen);
-
-    // Add the vertical line series to the chart
-    chart->addSeries(currentVerticalLine);
-
-    // Attach the axes to the vertical line
-    chart->setAxisX(chart->axisX(), currentVerticalLine);
-    chart->setAxisY(chart->axisY(), currentVerticalLine);
-
-    // Now display the Y value at the point where the vertical line crosses the data series
-    qreal yValue = vizData->statsData[colIndex].median[month][locIndex];  // Get the Y-value at the specified month
-
-    // Create a label to display the Y-value
-    valueLabel = new QGraphicsSimpleTextItem(QString::number(yValue));
-
-    // Find the position of the label on the chart (convert chart coordinates to scene coordinates)
-    QPointF labelPos = chart->mapToPosition(QPointF(month, yValue), currentVerticalLine);
-
-    // Set the position of the label slightly above the intersection point
-    valueLabel->setPos(labelPos.x(), labelPos.y() - 20);  // Offset slightly upwards to avoid overlapping with the point
-
-    valueLabel->setPen(QPen(Qt::white));
-    valueLabel->setBrush(QBrush(Qt::white));
-
-    // Add the label to the chart's scene
-    chart->scene()->addItem(valueLabel);
-
-    emit valueAtVerticalLineChanged(yValue);
-
+{
+    verticalLine = nullptr;
 }
 
-#include <QGraphicsTextItem>
+#include <QTimer>
 
-void ChartCustom::plotDataMedian1Location(QChartView* chartView, VizData *vizData, int colIndex, int locIndex, QString title)
-{
-    // Plot graphs using QCharts
+void ChartCustom::plotDataMedianMultipleLocations(QChartView* chartView, VizData *vizData, int colIndex, QMap<int,QColor> locInfo, int currentMonth, QString title) {
+    // Check if the median data is available
     if (vizData->statsData[colIndex].median.isEmpty()) {
         return;
     }
 
-    QPair<int, int> colrow = vizData->rasterData->locationPair1DTo2D[locIndex];
-    // Create a QChart object
+    // Create a new chart object
     chart = new QChart();
-    chart->setTitle(title + " location:" + QString::number(locIndex) + " (row: " + QString::number(colrow.first) + ", col: " + QString::number(colrow.second) + ")");
+    chart->setTitle(title + " (Multiple Locations)");
 
-    // Create a QLineSeries object for the data
-    series = new QLineSeries();
-
-    // Populate the series with the median data
-    for (int month = 0; month < vizData->statsData[colIndex].median.size(); month++) {
-        series->append(month, vizData->statsData[colIndex].median[month][locIndex]);
-    }
-
-    // Add the series to the chart
-    chart->addSeries(series);
-    chart->legend()->hide();  // Hide the legend
-
-    // Create axes
-    axisX = new QValueAxis;
-    axisX->setTitleText("Month");
+    // Create a QValueAxis for the X axis (month) and Y axis (median values)
+    QValueAxis *axisX = new QValueAxis;
     axisX->setTickCount(20);
 
-    axisY = new QValueAxis;
+    QValueAxis *axisY = new QValueAxis;
 
-    // Add the axes to the chart
-    chart->setAxisX(axisX, series);
-    chart->setAxisY(axisY, series);
+    // Add axes to the chart
+    chart->addAxis(axisX, Qt::AlignBottom);
+    chart->addAxis(axisY, Qt::AlignLeft);
 
+    // chart->legend()->hide();
+
+    // Initialize variables to track min and max Y-values
+    qreal minY = std::numeric_limits<qreal>::max();
+    qreal maxY = std::numeric_limits<qreal>::lowest();
+
+    // Create a different QLineSeries for each location and add it to the chart
+    for (int locIndex : locInfo.keys()) {
+        // Extract the location index and color
+        QColor color = locInfo[locIndex];
+
+        QPair<int, int> colrow = vizData->rasterData->locationPair1DTo2D[locIndex];
+
+        // Create a QLineSeries object for the current location
+        QLineSeries* series = new QLineSeries();
+        series->setName(QString("%1").arg(vizData->statsData[colIndex].median[currentMonth][locIndex]));
+
+        // Populate the series with the median data
+        for (int month = 0; month < vizData->statsData[colIndex].median.size(); month++) {
+            qreal yValue = vizData->statsData[colIndex].median[month][locIndex];
+            series->append(month, yValue);
+
+            // Update the min and max Y-values
+            if (yValue < minY) {
+                minY = yValue;
+            }
+            if (yValue > maxY) {
+                maxY = yValue;
+            }
+        }
+
+        series->setColor(color);
+
+        qDebug() << "[Chart]Location index: " << locIndex << "Color: " << color << "linecolor" << series->color();
+
+        // Add the series to the chart
+        chart->addSeries(series);
+
+        // Attach axes to the series
+        series->attachAxis(axisX);
+        series->attachAxis(axisY);
+    }
+    qDebug() << "\n";
+
+    // Set the Y-axis range to include all data points
+    axisY->setRange(minY, maxY);
+
+    // Apply chart theme
     chart->setTheme(QChart::ChartThemeDark);
 
-    // Create a QChartView to display the chart
+    // Set the chart to the QChartView
     chartView->setRenderHint(QPainter::Antialiasing);
     chartView->setChart(chart);
+
+    // Ensure the current month is within the valid range
+    if (currentMonth < 0 || currentMonth >= vizData->statsData[colIndex].median.size()) {
+        return;
+    }
+
+    // Remove the previous vertical line if it exists
+    if (verticalLine) {
+        chart->scene()->removeItem(verticalLine);
+        delete verticalLine;  // Clean up memory
+        verticalLine = nullptr;
+    }
+
+    // Calculate the position of the vertical line
+    QPointF topPosition = chart->mapToPosition(QPointF(currentMonth, maxY));
+    QPointF bottomPosition = chart->mapToPosition(QPointF(currentMonth, minY));
+
+    // Check if the positions are valid before proceeding
+    if (topPosition == QPointF(0, 0) || bottomPosition == QPointF(0, 0)) {
+        qDebug() << "Invalid positions for vertical line: topPosition:" << topPosition << "bottomPosition:" << bottomPosition;
+        return;
+    }
+
+    // Create a new QGraphicsLineItem for the vertical line
+    verticalLine = new QGraphicsLineItem(QLineF(bottomPosition, topPosition));
+    QPen vlinePen(Qt::red);
+    vlinePen.setWidth(2);  // Set line width
+    verticalLine->setPen(vlinePen);
+
+    // Add the vertical line to the chart's scene
+    chart->scene()->addItem(verticalLine);
+    chart->update();
 }
+
+
+
+
 

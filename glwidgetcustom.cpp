@@ -227,7 +227,7 @@ void GLWidgetCustom::updateVertexData()
 
     pixelScaleX = width() * pixelScale;
     pixelScaleY = height() * pixelScale;
-    if(vizData->rasterData->ncols > vizData->rasterData->nrows)
+    if(vizData->rasterData->raster->NCOLS > vizData->rasterData->raster->NROWS)
         pixelScaleX *= aspectRatio;
     else
         pixelScaleY *= aspectRatio;
@@ -336,9 +336,10 @@ void GLWidgetCustom::updateInstanceData()
     float maxValue = std::numeric_limits<float>::min();
 
     // Calculate min and max values in rasterData to normalize the data
-    for (const auto &row : vizData->rasterData->values) {
-        for (double value : row) {
-            if (value != vizData->rasterData->nodata_value) {
+    for(int row = 0; row < vizData->rasterData->raster->NROWS; ++row) {
+        for(int col = 0; col < vizData->rasterData->raster->NCOLS; ++col) {
+            float value = vizData->rasterData->raster->data[row][col];
+            if (value != vizData->rasterData->raster->NODATA_VALUE) {
                 minValue = std::min(minValue, static_cast<float>(value));
                 maxValue = std::max(maxValue, static_cast<float>(value));
             }
@@ -356,12 +357,12 @@ void GLWidgetCustom::updateInstanceData()
     //     aspectRatio = static_cast<double>(screenHeight) / static_cast<double>(screenWidth);
 
     // Loop through rasterData to get valid positions and set colors based on value
-    for (int row = 0; row < vizData->rasterData->values.size(); ++row) {
-        for (int col = 0; col < vizData->rasterData->values[row].size(); ++col) {
-            double value = vizData->rasterData->values[row][col];
+    for (int row = 0; row < vizData->rasterData->raster->NROWS; ++row) {
+        for (int col = 0; col < vizData->rasterData->raster->NCOLS; ++col) {
+            double value = vizData->rasterData->raster->data[row][col];
 
             // Only consider points that are not equal to nodata_value
-            if (value != vizData->rasterData->nodata_value) {
+            if (value != vizData->rasterData->raster->NODATA_VALUE) {
                 // Calculate the offset position for each square based on pixel scale
                 float offsetX = (-1.0f + (col + 0.5f) * initPixelScaleX);
                 float offsetY = (1.0f - (row + 0.5f) * initPixelScaleY);
@@ -399,7 +400,6 @@ void GLWidgetCustom::updateInstanceData()
         }
     }
 
-    vizData->rasterData->locationRaster = instanceCount;
     qDebug() << "Number of valid data points:" << instanceCount;
 }
 
@@ -454,8 +454,8 @@ void GLWidgetCustom::mousePressEvent(QMouseEvent *event)
             int widgetHeight = height();
 
             // Assuming the grid is rendered with fixed size squares and the whole widget is used for rendering
-            int numRows = vizData->rasterData->nrows; // number of rows in your grid
-            int numCols = vizData->rasterData->nrows; // number of columns in your grid
+            int numRows = vizData->rasterData->raster->NROWS; // number of rows in your grid
+            int numCols = vizData->rasterData->raster->NCOLS; // number of columns in your grid
 
             // Size of each square in terms of widget coordinates
             int squareWidth = widgetWidth / numCols;

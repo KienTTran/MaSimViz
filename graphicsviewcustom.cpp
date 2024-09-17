@@ -13,9 +13,10 @@ GraphicsViewCustom::GraphicsViewCustom(QWidget *parent) {
     lastMousePos = QPoint();
     currentZoomLevel = 1.0;
     currentZoomFactor = 1.0;
-    cellSize = 25;
+    cellSize = 30;
     vizData = new VizData();
     selectedSquareList = QVector<QVector<bool>>();
+    selectedSquareColorList = QVector<QVector<QColor>>();
 
     setRenderHint(QPainter::Antialiasing, true);  // Optional: improve rendering quality
     setDragMode(QGraphicsView::NoDrag);  // Disable default drag mode
@@ -29,7 +30,7 @@ GraphicsViewCustom::GraphicsViewCustom(QWidget *parent) {
 
 // Mouse panning
 void GraphicsViewCustom::mousePressEvent(QMouseEvent *event) {
-    if (event->button() == Qt::LeftButton) {
+    if (event->button() == Qt::RightButton) {
         isPanning = true;
         lastMousePos = event->pos(); // Change cursor when panning
     }
@@ -52,7 +53,7 @@ void GraphicsViewCustom::mouseMoveEvent(QMouseEvent *event) {
 }
 
 void GraphicsViewCustom::mouseReleaseEvent(QMouseEvent *event) {
-    if (event->button() == Qt::LeftButton) {
+    if (event->button() == Qt::RightButton) {
         isPanning = false;
         setCursor(Qt::ArrowCursor);  // Reset cursor
     }
@@ -71,7 +72,7 @@ void GraphicsViewCustom::wheelEvent(QWheelEvent *event) {
     // otherwise, do yours
     else
     {
-        const double zoomFactor = 1.01;  // Smaller zoom factor for smooth zoom
+        const double zoomFactor = 1.05;  // Smaller zoom factor for smooth zoom
         const int maxZoomLevel = 500;  // Maximum zoom level
         const int minZoomLevel = -500;  // Minimum zoom level
         isPanning = false;  // Disable panning while zooming
@@ -104,18 +105,15 @@ void GraphicsViewCustom::adjustZoomLevel(int zoomLevel){
 // Function to display .asc data on QGraphicsView as dots
 void GraphicsViewCustom::displayAscData(QGraphicsScene *scene, VizData *vizData) {
 
-    int rows = vizData->rasterData->values.size();
-    int cols = vizData->rasterData->values[0].size();
-
-    ncols = cols;
-    nrows = rows;
+    ncols = vizData->rasterData->raster->NCOLS;
+    nrows = vizData->rasterData->raster->NROWS;
 
     //Find min and max value
     double minValue = 0;
     double maxValue = 0;
-    for (int i = 0; i < rows; ++i) {
-        for (int j = 0; j < cols; ++j) {
-            double value = vizData->rasterData->values[i][j];
+    for (int i = 0; i < vizData->rasterData->raster->NROWS; ++i) {
+        for (int j = 0; j < vizData->rasterData->raster->NCOLS; ++j) {
+            double value = vizData->rasterData->raster->data[i][j];
             if (value != -9999) {  // Assuming -9999 is the NODATA_value
                 if(value < minValue){
                     minValue = value;
@@ -127,7 +125,11 @@ void GraphicsViewCustom::displayAscData(QGraphicsScene *scene, VizData *vizData)
         }
     }
 
-    selectedSquareList = QVector<QVector<bool>>(cols, QVector<bool>(rows));
+    selectedSquareList = QVector<QVector<bool>>(vizData->rasterData->raster->NCOLS,
+                                                QVector<bool>(vizData->rasterData->raster->NROWS,false));
+
+    selectedSquareColorList = QVector<QVector<QColor>>(vizData->rasterData->raster->NCOLS,
+                                                QVector<QColor>(vizData->rasterData->raster->NROWS,QColor(0,0,0)));
 
     //segment the value range to 6 colors: green, blue, yellow, orange, red, purple
     double segment = 6;
@@ -138,95 +140,83 @@ void GraphicsViewCustom::displayAscData(QGraphicsScene *scene, VizData *vizData)
 
     scene->clear();  // Clear the scene before drawing new data
     // Loop through the grid data and draw each value as a dot
-    int squareCount = 0;
-    for (int i = 0; i < rows; ++i) {
-        for (int j = 0; j < cols; ++j) {
-            double value = vizData->rasterData->values[i][j];
 
-            if (value != -9999) {  // Assuming -9999 is the NODATA_value
-                // Scale the dot size (you can adjust the scaling factor)
+    for(int loc = 0; loc < vizData->rasterData->nLocations; loc++){
+        int row = vizData->rasterData->locationPair1DTo2D[loc].first;
+        int col = vizData->rasterData->locationPair1DTo2D[loc].second;
+        double value = vizData->rasterData->raster->data[row][col];
 
-                // Scale the square size (you can adjust the scaling factor)
-                double squareSize = 25.0;
-                double squareLineWidth = 0.5;
+        // Scale the square size (you can adjust the scaling factor)
+        double squareSize = 25.0;
+        double squareLineWidth = 0.5;
 
-                // Create a rectangle item for the square
-                SquareItem *square = new SquareItem(j,i,j * cellSize, i * cellSize, squareSize, squareSize);
-                square->isSelected = selectedSquareList[j][i];
-                QObject::connect(square, &SquareItem::squareClicked, this, &GraphicsViewCustom::onSquareClicked);
+        // Create a rectangle item for the square
+        SquareItem *square = new SquareItem(col,row,col * cellSize, row * cellSize, squareSize, squareSize,
+                                            selectedSquareList[col][row],selectedSquareColorList[col][row]);
+        QObject::connect(square, &SquareItem::squareClicked, this, &GraphicsViewCustom::onSquareClicked);
 
-                // Normalize the value to range [0, 1] based on min and max values
-                float normalizedValue = (static_cast<float>(value) - minValue) / (maxValue - minValue);
+        // Normalize the value to range [0, 1] based on min and max values
+        float normalizedValue = (static_cast<float>(value) - minValue) / (maxValue - minValue);
 
-                // Determine which color stop range this value falls into
-                int nColorSteps = vizData->colorStops.size() - 1;
-                float stepSize = 1.0f / nColorSteps;
-                int lowerStep = qFloor(normalizedValue / stepSize);
-                float factor = (normalizedValue - lowerStep * stepSize) / stepSize;
+        // Determine which color stop range this value falls into
+        int nColorSteps = vizData->colorStops.size() - 1;
+        float stepSize = 1.0f / nColorSteps;
+        int lowerStep = qFloor(normalizedValue / stepSize);
+        float factor = (normalizedValue - lowerStep * stepSize) / stepSize;
 
-                // Ensure we don't go out of bounds
-                if (lowerStep >= nColorSteps) {
-                    lowerStep = nColorSteps - 1;
-                    factor = 1.0f;
-                }
-
-                // Interpolate between the two adjacent colors
-                QVector3D color = vizData->interpolate(lowerStep, factor);
-
-                square->setBrush(QBrush(QColor::fromRgbF(color.x(), color.y(), color.z())));
-                //set line width
-                square->setPen(QPen(Qt::black, squareLineWidth));
-
-                vizData->rasterData->locationPair1DTo2D[squareCount] = std::make_pair(j, i);
-                vizData->rasterData->locationPair2DTo1D[std::make_pair(j, i)] = squareCount;
-
-                squareCount++;
-
-                // Add the dot to the scene
-                scene->addItem(square);
-            }
+        // Ensure we don't go out of bounds
+        if (lowerStep >= nColorSteps) {
+            lowerStep = nColorSteps - 1;
+            factor = 1.0f;
         }
-    }
 
-    qDebug() << "Square count: " << squareCount;
+        // Interpolate between the two adjacent colors
+        QVector3D color = vizData->interpolate(lowerStep, factor);
+
+        square->setBrush(QBrush(QColor::fromRgbF(color.x(), color.y(), color.z())));
+
+        // Add the dot to the scene
+        scene->addItem(square);
+    }
     scene->update();
 }
 
-void GraphicsViewCustom::onSquareClicked(const QPointF &pos) {
-    // qDebug() << "Square clicked at: " << pos;
+void GraphicsViewCustom::onSquareClicked(const QPoint &pos, const QColor &color) {
+    qDebug() << "[Graphics] Square clicked at: " << pos << "Color: " << color;
     selectedSquareList[pos.x()][pos.y()] = !selectedSquareList[pos.x()][pos.y()];
-    emit squareClickedOnScene(pos);
+    selectedSquareColorList[pos.x()][pos.y()] = color;
+    emit squareClickedOnScene(pos,color);
 }
 
 void GraphicsViewCustom::resetGraphicsView(){
     // Reset the transformation matrix to avoid cumulative scaling
-    selectedSquareList = QVector<QVector<bool>>(ncols,QVector<bool>(nrows));
+    if(selectedSquareList.size() > 0){
+        for(int i = 0; i < selectedSquareList.size(); i++){
+            for(int j = 0; j < selectedSquareList[i].size(); j++){
+                selectedSquareList[i][j] = false;
+                selectedSquareColorList[i][j] = QColor(0,0,0);
+            }
+        }
+    }
 }
 
 void GraphicsViewCustom::displayAscDataMedian(QGraphicsScene *scene, const int colIndex, VizData *vizData, int month) {
-    qDebug() << "Displaying median data for column: " << colIndex << " and month: " << month;
-
-    int rows = vizData->rasterData->values.size();
-    int cols = vizData->rasterData->values[0].size();
-
-    // selectedSquareList = QVector<QVector<bool>>(cols, QVector<bool>(rows));
+    // qDebug() << "Displaying median data for column: " << colIndex << " and month: " << month;
 
     scene->setBackgroundBrush(Qt::black);
 
     scene->clear();  // Clear the scene before drawing new data
 
-    // Loop through the grid data and draw each value as a square
-    for (int loc = 0; loc < vizData->rasterData->locationRaster; ++loc) {
+    for(int loc = 0; loc < vizData->rasterData->nLocations; loc++){
+        int row = vizData->rasterData->locationPair1DTo2D[loc].first;
+        int col = vizData->rasterData->locationPair1DTo2D[loc].second;
         double value = vizData->statsData[colIndex].median[month][loc];
         // Scale the square size (you can adjust the scaling factor)
         double squareSize = 25.0;
         double squareLineWidth = 0.5;
 
-        int col = vizData->rasterData->locationPair1DTo2D[loc].first;
-        int row = vizData->rasterData->locationPair1DTo2D[loc].second;
-
-        SquareItem *square = new SquareItem(col, row, col * cellSize, row * cellSize, squareSize, squareSize);
-        square->isSelected = selectedSquareList[col][row];
+        SquareItem *square = new SquareItem(col,row,col * cellSize, row * cellSize, squareSize, squareSize,
+                                            selectedSquareList[col][row],selectedSquareColorList[col][row]);
         // Create a rectangle item for the square
         QObject::connect(square, &SquareItem::squareClicked, this, &GraphicsViewCustom::onSquareClicked);
 
@@ -250,10 +240,9 @@ void GraphicsViewCustom::displayAscDataMedian(QGraphicsScene *scene, const int c
 
         square->setBrush(QBrush(QColor::fromRgbF(color.x(), color.y(), color.z())));
 
-        square->setPen(QPen(Qt::black, squareLineWidth));
-
         // Add the square to the scene
         scene->addItem(square);
+
     }
     scene->update();
 }

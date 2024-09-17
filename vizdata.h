@@ -6,19 +6,13 @@
 #include <QVector3D>
 #include <QDateTime>
 
+#include "ascfile.h"
 class VizData
 {
 public:
     struct RasterData{
-        int ncols = 0;
-        int nrows = 0;
-        double xllcorner = 0;
-        double yllcorner = 0;
-        double cellsize = 0;
-        double nodata_value = -9999;
-        QVector<QVector<double>> values;
-        int locationRaster = 0;
-        int locationSim = 0;
+        AscFile *raster;
+        int nLocations;
         QMap<int, QPair<int, int>> locationPair1DTo2D;
         QMap<QPair<int, int>, int> locationPair2DTo1D;
     };

@@ -47,13 +47,14 @@ private:
     int ncols;
     int nrows;
     QVector<QVector<bool>> selectedSquareList;
+    QVector<QVector<QColor>> selectedSquareColorList;
 
 public slots:
-    void onSquareClicked(const QPointF &pos);
+    void onSquareClicked(const QPoint &pos, const QColor &color);
     void resetGraphicsView();
 
 signals:
-    void squareClickedOnScene(QPointF colRow);
+    void squareClickedOnScene(QPoint colRow, QColor color);
 };
 
 #endif // GRAPHICSVIEWCUSTOM_H

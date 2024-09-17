@@ -85,7 +85,7 @@ void LoaderSQLite::loadFileList(const QStringList &filePathList, VizData *vizDat
 
 void processDatabase(const QString &dbPath, int dbIndex, const QString &locationID, const QString &monthID,
                      const QStringList &columnList, const QString &databaseName, VizData *vizData) {
-    int numLocations = vizData->rasterData->locationRaster;
+    int numLocations = vizData->rasterData->nLocations;
     int numMonths = vizData->monthCountStartToEnd;
 
     QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", QString::number(dbIndex));
@@ -162,8 +162,8 @@ void LoaderSQLite::loadDBList(const QStringList &dbPathList, const QString locat
         VizData::StatsData stats;
         stats.data.resize(numDatabases);
         for (int dbIndex = 0; dbIndex < numDatabases; ++dbIndex) {
-            stats.data[dbIndex].resize(vizData->rasterData->locationRaster);
-            for (int locIndex = 0; locIndex < vizData->rasterData->locationRaster; ++locIndex) {
+            stats.data[dbIndex].resize(vizData->rasterData->nLocations);
+            for (int locIndex = 0; locIndex < vizData->rasterData->nLocations; ++locIndex) {
                 stats.data[dbIndex][locIndex].resize(vizData->monthCountStartToEnd);
             }
         }

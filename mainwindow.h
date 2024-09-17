@@ -3,7 +3,7 @@
 
 #include <QMainWindow>
 #include <QSlider>
-
+#include <QList>
 #include <QtConcurrent/QtConcurrent>
 
 #include <QtConcurrent>
@@ -13,7 +13,7 @@
 #include <QFuture>
 #include <QFutureWatcher>
 #include <atomic>
-
+#include <tuple>
 
 #include "loader.h"
 #include "vizdata.h"
@@ -59,7 +59,7 @@ private slots:
     void onMouseMoved(const QPoint &pos);
 
 public slots:
-    void onSquareClicked(const QPointF &pos);
+    void onSquareClicked(const QPoint &pos, const QColor &color);
 
 private:
     Ui::MainWindow *ui;
@@ -88,7 +88,7 @@ private:
     bool isRunning = false;             // Global or class member to track play/pause state
     int currentMonth = 0;
     int currentColIndexPlaying = 0;
-    int currentLocationSelected = 0;
+    QMap<int,QColor> currentLocationSelectedMap;
     QPair<int,int> currenColRowSelected = qMakePair(0,0);
 
     bool inspectMode = false;

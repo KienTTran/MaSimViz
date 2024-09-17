@@ -39,7 +39,7 @@ void updateGlobalMinMax(double localValue, double& globalMin, double& globalMax)
 // Actual work function to run in a separate thread for all IQRs/medians
 void processStatsDataWorker(VizData* vizData, std::function<void(int)> progressCallback) {
     int nDatabases = vizData->statsData[0].data.size();  // Number of databases
-    int nLocations = vizData->rasterData->locationRaster; // Number of locations
+    int nLocations = vizData->rasterData->nLocations; // Number of locations
     int nMonths = vizData->monthCountStartToEnd;  // Number of months
     int totalTasks = vizData->statsData.size() * nMonths * nLocations * 5; // 5 threads for each statData element (IQRs + median)
     int progress = 0;
