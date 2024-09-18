@@ -51,8 +51,16 @@ MainWindow::MainWindow(QWidget *parent)
     currentMonth = 0;
     currentLocationSelectedMap = QMap<int,QColor>();
 
+    ui->graphicsView->setScene(scene);
     ui->graphicsView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     ui->graphicsView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    ui->graphicsView->setRenderHint(QPainter::Antialiasing);
+    ui->graphicsView->setRenderHint(QPainter::TextAntialiasing);
+    ui->graphicsView->setRenderHint(QPainter::SmoothPixmapTransform);
+
+    ui->wg_color_map->setHidden(true);
+
+    QObject::connect(ui->graphicsView, &GraphicsViewCustom::squareClickedOnScene, this, &MainWindow::onSquareClicked);
 
     hideMedianItems();
 }
@@ -218,13 +226,8 @@ void MainWindow::on_cb_raster_list_currentIndexChanged(int index)
 
     qDebug() << "ncols:" << vizData->rasterData->raster->NCOLS << " nrows:" << vizData->rasterData->raster->NROWS;
 
-    ui->graphicsView->setScene(scene);
-    ui->graphicsView->setRenderHint(QPainter::Antialiasing);
-    ui->graphicsView->setRenderHint(QPainter::TextAntialiasing);
-    ui->graphicsView->setRenderHint(QPainter::SmoothPixmapTransform);
+    ui->wg_color_map->setColorMapMinMax(QPair<double,double>(vizData->rasterData->dataMin, vizData->rasterData->dataMax));
     ui->graphicsView->displayAscData(scene, vizData);
-
-    QObject::connect(ui->graphicsView, &GraphicsViewCustom::squareClickedOnScene, this, &MainWindow::onSquareClicked);
 }
 
 void MainWindow::onSquareClicked(const QPoint &pos, const QColor &color)
@@ -306,6 +309,7 @@ void MainWindow::on_bt_auto_load_folder_clicked()
     ui->statusbar->showMessage(statusMessage);
 
     if(all_rasters_exist){
+        resetMedianMap();
         enableInputWidgets();
         showItemsAfterBrowseClicked();
 
@@ -531,6 +535,7 @@ void MainWindow::disabeInputWidgets(){
     ui->bt_auto_load_folder->setEnabled(false);
     ui->bt_run->setEnabled(false);
     ui->graphicsView->setEnabled(false);
+    ui->slider_progress->setEnabled(false);
 }
 
 void MainWindow::enableInputWidgets(){
@@ -541,6 +546,7 @@ void MainWindow::enableInputWidgets(){
     ui->progress_bar->setValue(0);
     ui->bt_run->setEnabled(true);
     ui->graphicsView->setEnabled(true);
+    ui->slider_progress->setEnabled(true);
 }
 
 void MainWindow::resetMedianMap(){
@@ -552,6 +558,7 @@ void MainWindow::resetMedianMap(){
 }
 
 void MainWindow::showMedianMap(){
+    ui->wg_color_map->setColorMapMinMax(QPair<double,double>(vizData->statsData[currentColIndexPlaying].medianMin, vizData->statsData[currentColIndexPlaying].medianMax));
     ui->graphicsView->displayAscDataMedian(scene, currentColIndexPlaying, vizData, currentMonth);
     ui->graphicsView->update();
 }
@@ -577,12 +584,13 @@ void MainWindow::showItemsAfterBrowseClicked(){
     ui->slider_progress->setValue(0);
     ui->progress_bar->setValue(0);
     ui->bt_run->setEnabled(false);
+    ui->wg_color_map->setHidden(false);
 }
 
 void MainWindow::showItemsAfterProcessClicked(){
     ui->cb_db_list->setHidden(false);
     ui->cb_raster_list->setHidden(ui->cb_db_list->isVisible());
-    ui->slider_progress->setHidden(true);
+    ui->slider_progress->setHidden(false);
     ui->progress_bar->setHidden(ui->slider_progress->isVisible());
     ui->slider_progress->setValue(0);
     ui->progress_bar->setValue(0);

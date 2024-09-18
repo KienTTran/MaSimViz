@@ -381,7 +381,7 @@ void GLWidgetCustom::updateInstanceData()
 
 
                 // Determine which color stop range this value falls into
-                int nColorSteps = vizData->colorStops.size() - 1;
+                int nColorSteps = vizData->colorMap.size() - 1;
                 float stepSize = 1.0f / nColorSteps;
                 int lowerStep = qFloor(normalizedValue / stepSize);
                 float factor = (normalizedValue - lowerStep * stepSize) / stepSize;
@@ -580,7 +580,7 @@ void GLWidgetCustom::updateInstanceDataMedian(int dataIndex, int month)
         }
 
         // Determine which color stop range this value falls into based on the value itself
-        int nColorSteps = vizData->colorStops.size() - 1;
+        int nColorSteps = vizData->colorMap.size() - 1;
         double stepSize = (maxValue - minValue) / nColorSteps;
         int lowerStep = qFloor((value - minValue) / stepSize);
         float factor = (value - (minValue + lowerStep * stepSize)) / stepSize;

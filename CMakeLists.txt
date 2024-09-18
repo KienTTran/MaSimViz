@@ -153,6 +153,7 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         squareitem.h squareitem.cpp
         chartcustom.h chartcustom.cpp
         ascfile.h ascfile.cpp
+        colormapwidget.h
     )
 
     qt_create_translation(QM_FILES ${CMAKE_SOURCE_DIR} ${TS_FILES})

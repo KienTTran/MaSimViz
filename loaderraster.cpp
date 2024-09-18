@@ -23,6 +23,28 @@ void LoaderRaster::loadFileSingle(const QString &filePath, VizData *vizData, std
 
     vizData->rasterData->raster = AscFileManager::read(filePath.toStdString());
 
+    double min = std::numeric_limits<double>::max();
+    double max = -std::numeric_limits<double>::max();
+
+    int locationIndex = 0;
+    for(int i = 0; i < vizData->rasterData->raster->NROWS; i++) {
+        for(int j = 0; j < vizData->rasterData->raster->NCOLS; j++) {
+            if(vizData->rasterData->raster->data[i][j] == vizData->rasterData->raster->NODATA_VALUE) {
+                continue;
+            }
+            min = qMin(min, vizData->rasterData->raster->data[i][j]);
+            max = qMax(max, vizData->rasterData->raster->data[i][j]);
+            vizData->rasterData->locationPair1DTo2D[locationIndex] = std::make_pair(i, j);
+            vizData->rasterData->locationPair2DTo1D[QPair<int,int>(i,j)] = locationIndex;
+            locationIndex++;
+        }
+    }
+
+    vizData->rasterData->dataMin = min;
+    vizData->rasterData->dataMax = max;
+
+    vizData->rasterData->nLocations = locationIndex;
+
     qDebug() << "Raster data loaded from file:" << filePath;
     qDebug() << "Number of columns:" << vizData->rasterData->raster->NCOLS;
     qDebug() << "Number of rows:" << vizData->rasterData->raster->NROWS;
@@ -32,22 +54,9 @@ void LoaderRaster::loadFileSingle(const QString &filePath, VizData *vizData, std
     qDebug() << "YLLCORNER:" << vizData->rasterData->raster->YLLCORNER;
     qDebug() << "CELLSIZE:" << vizData->rasterData->raster->CELLSIZE;
     qDebug() << "NODATA_VALUE:" << vizData->rasterData->raster->NODATA_VALUE;
-
-
-    int locationIndex = 0;
-    for(int i = 0; i < vizData->rasterData->raster->NROWS; i++) {
-        for(int j = 0; j < vizData->rasterData->raster->NCOLS; j++) {
-            if(vizData->rasterData->raster->data[i][j] == vizData->rasterData->raster->NODATA_VALUE) {
-                continue;
-            }
-            vizData->rasterData->locationPair1DTo2D[locationIndex] = std::make_pair(i, j);
-            vizData->rasterData->locationPair2DTo1D[QPair<int,int>(i,j)] = locationIndex;
-            locationIndex++;
-        }
-    }
-
-
-    vizData->rasterData->nLocations = locationIndex;
+    qDebug() << "Number of locations:" << locationIndex;
+    qDebug() << "Data min:" << vizData->rasterData->dataMin;
+    qDebug() << "Data max:" << vizData->rasterData->dataMax;
 
     // Trigger the completion callback
     if (completionCallback) {

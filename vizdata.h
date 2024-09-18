@@ -13,6 +13,8 @@ public:
     struct RasterData{
         AscFile *raster;
         int nLocations;
+        double dataMin = 0.0;
+        double dataMax = 0.0;
         QMap<int, QPair<int, int>> locationPair1DTo2D;
         QMap<QPair<int, int>, int> locationPair2DTo1D;
     };
@@ -24,10 +26,10 @@ public:
         QList<QList<double>> iqr25;
         QList<QList<double>> iqr75;
         QList<QList<double>> iqr95;
-        double dataMin = 0;
-        double dataMax = 0;
-        double medianMin = 0;
-        double medianMax = 0;
+        double dataMin = 0.0;
+        double dataMax = 0.0;
+        double medianMin = 0.0;
+        double medianMax = 0.0;
     };
 
     struct SQLData{
@@ -41,7 +43,7 @@ public:
 
 
     QVector3D interpolate(int lowerStep, float factor){
-        return interpolateColors(colorStops[lowerStep], colorStops[lowerStep + 1], factor);
+        return interpolateColors(colorMap[lowerStep], colorMap[lowerStep + 1], factor);
     }
 
     QVector3D interpolateColors(const QVector3D& color1, const QVector3D& color2, float factor) {
@@ -49,8 +51,8 @@ public:
     }
 
     // Define extended color stops for a more detailed gradient
-    QVector<QVector3D> colorStops = {
-        QVector3D(0.1f, 0.1f, 0.1f),  // Blue
+    QVector<QVector3D> colorMap = {
+        QVector3D(0.1f, 0.1f, 0.1f),  // Gray
         QVector3D(0.0f, 0.25f, 0.0f),  // Midpoint between Blue and Light Blue
         QVector3D(0.0f, 0.5f, 1.0f),  // Light Blue
         QVector3D(0.0f, 0.75f, 1.0f),  // Midpoint between Light Blue and Cyan
@@ -71,8 +73,6 @@ public:
         QVector3D(0.5f, 0.0f, 0.5f),  // Magenta-Purple
         QVector3D(0.5f, 0.0f, 0.75f),  // Midpoint between Magenta-Purple and Purple
         QVector3D(0.5f, 0.0f, 1.0f),  // Purple
-        // QVector3D(0.25f, 0.0f, 1.0f),  // Midpoint between Purple and Blue
-        // QVector3D(0.0f, 0.0f, 1.0f)   // Blue
     };
 
     VizData();

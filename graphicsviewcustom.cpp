@@ -159,7 +159,7 @@ void GraphicsViewCustom::displayAscData(QGraphicsScene *scene, VizData *vizData)
         float normalizedValue = (static_cast<float>(value) - minValue) / (maxValue - minValue);
 
         // Determine which color stop range this value falls into
-        int nColorSteps = vizData->colorStops.size() - 1;
+        int nColorSteps = vizData->colorMap.size() - 1;
         float stepSize = 1.0f / nColorSteps;
         int lowerStep = qFloor(normalizedValue / stepSize);
         float factor = (normalizedValue - lowerStep * stepSize) / stepSize;
@@ -224,7 +224,7 @@ void GraphicsViewCustom::displayAscDataMedian(QGraphicsScene *scene, const int c
         float normalizedValue = (static_cast<float>(value) - vizData->statsData[colIndex].medianMin) / (vizData->statsData[colIndex].medianMax - vizData->statsData[colIndex].medianMin);
 
         // Determine which color stop range this value falls into
-        int nColorSteps = vizData->colorStops.size() - 1;
+        int nColorSteps = vizData->colorMap.size() - 1;
         float stepSize = 1.0f / nColorSteps;
         int lowerStep = qFloor(normalizedValue / stepSize);
         float factor = (normalizedValue - lowerStep * stepSize) / stepSize;
