@@ -11,7 +11,11 @@ ChartCustom::ChartCustom(QObject *parent)
 
 #include <QTimer>
 
-void ChartCustom::plotDataMedianMultipleLocations(QChartView* chartView, VizData *vizData, int colIndex, QMap<int,QColor> locInfo, int currentMonth, QString title) {
+void ChartCustom::setChartView(QChartView *chartView){
+    this->chartView = chartView;
+}
+
+void ChartCustom::plotDataMedianMultipleLocations(VizData *vizData, int colIndex, QMap<int,QColor> locInfo, int currentMonth, QString title) {
     // Check if the median data is available
     if (vizData->statsData[colIndex].median.isEmpty()) {
         return;
@@ -19,7 +23,10 @@ void ChartCustom::plotDataMedianMultipleLocations(QChartView* chartView, VizData
 
     // Create a new chart object
     chart = new QChart();
-    chart->setTitle(title + " (Multiple Locations)");
+
+    // Apply chart theme
+    chart->setTheme(QChart::ChartThemeDark);
+    chart->setTitle(QString("%1").arg(title));
 
     // Create a QValueAxis for the X axis (month) and Y axis (median values)
     QValueAxis *axisX = new QValueAxis;
@@ -47,6 +54,8 @@ void ChartCustom::plotDataMedianMultipleLocations(QChartView* chartView, VizData
         // Create a QLineSeries object for the current location
         QLineSeries* series = new QLineSeries();
         series->setName(QString("%1").arg(vizData->statsData[colIndex].median[currentMonth][locIndex]));
+        series->setPen(QPen(color,2));
+        series->setColor(color);
 
         // Populate the series with the median data
         for (int month = 0; month < vizData->statsData[colIndex].median.size(); month++) {
@@ -62,10 +71,6 @@ void ChartCustom::plotDataMedianMultipleLocations(QChartView* chartView, VizData
             }
         }
 
-        series->setColor(color);
-
-        qDebug() << "[Chart]Location index: " << locIndex << "Color: " << color << "linecolor" << series->color();
-
         // Add the series to the chart
         chart->addSeries(series);
 
@@ -73,45 +78,51 @@ void ChartCustom::plotDataMedianMultipleLocations(QChartView* chartView, VizData
         series->attachAxis(axisX);
         series->attachAxis(axisY);
     }
-    qDebug() << "\n";
 
     // Set the Y-axis range to include all data points
     axisY->setRange(minY, maxY);
-
-    // Apply chart theme
-    chart->setTheme(QChart::ChartThemeDark);
 
     // Set the chart to the QChartView
     chartView->setRenderHint(QPainter::Antialiasing);
     chartView->setChart(chart);
 
-    // Ensure the current month is within the valid range
-    if (currentMonth < 0 || currentMonth >= vizData->statsData[colIndex].median.size()) {
-        return;
+    if(locInfo.size() > 0){
+        // Ensure the current month is within the valid range
+        if (currentMonth < 0 || currentMonth >= vizData->statsData[colIndex].median.size()) {
+            return;
+        }
+
+        // Remove the previous vertical line if it exists
+        if (verticalLine) {
+            chart->scene()->removeItem(verticalLine);
+            delete verticalLine;  // Clean up memory
+            verticalLine = nullptr;
+        }
+
+        // Calculate the position of the vertical line
+        QPointF topPosition = chart->mapToPosition(QPointF(currentMonth, maxY));
+        QPointF bottomPosition = chart->mapToPosition(QPointF(currentMonth, minY));
+
+        // Check if the positions are valid before proceeding
+        if (topPosition == QPointF(0, 0) || bottomPosition == QPointF(0, 0)) {
+            qDebug() << "Invalid positions for vertical line: topPosition:" << topPosition << "bottomPosition:" << bottomPosition;
+            return;
+        }
+
+        // Create a new QGraphicsLineItem for the vertical line
+        verticalLine = new QGraphicsLineItem(QLineF(bottomPosition, topPosition));
+        QPen vlinePen(Qt::red);
+        vlinePen.setWidth(2);  // Set line width
+        verticalLine->setPen(vlinePen);
     }
-
-    // Remove the previous vertical line if it exists
-    if (verticalLine) {
-        chart->scene()->removeItem(verticalLine);
-        delete verticalLine;  // Clean up memory
-        verticalLine = nullptr;
+    else{
+        // Remove the previous vertical line if it exists
+        if (verticalLine) {
+            chart->scene()->removeItem(verticalLine);
+            delete verticalLine;  // Clean up memory
+            verticalLine = nullptr;
+        }
     }
-
-    // Calculate the position of the vertical line
-    QPointF topPosition = chart->mapToPosition(QPointF(currentMonth, maxY));
-    QPointF bottomPosition = chart->mapToPosition(QPointF(currentMonth, minY));
-
-    // Check if the positions are valid before proceeding
-    if (topPosition == QPointF(0, 0) || bottomPosition == QPointF(0, 0)) {
-        qDebug() << "Invalid positions for vertical line: topPosition:" << topPosition << "bottomPosition:" << bottomPosition;
-        return;
-    }
-
-    // Create a new QGraphicsLineItem for the vertical line
-    verticalLine = new QGraphicsLineItem(QLineF(bottomPosition, topPosition));
-    QPen vlinePen(Qt::red);
-    vlinePen.setWidth(2);  // Set line width
-    verticalLine->setPen(vlinePen);
 
     // Add the vertical line to the chart's scene
     chart->scene()->addItem(verticalLine);

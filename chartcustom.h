@@ -21,9 +21,12 @@ private:
     QChart *chart;
     QGraphicsLineItem *verticalLine = nullptr;
     QList<QGraphicsSimpleTextItem*> valueLabels;
+    QChartView *chartView;
 
+public:
+    void setChartView(QChartView* chartView);
 public slots:
-    void plotDataMedianMultipleLocations(QChartView* chartView, VizData *vizData, int colIndex, QMap<int,QColor> locInfo, int currentMonth, QString title);
+    void plotDataMedianMultipleLocations(VizData *vizData, int colIndex, QMap<int,QColor> locInfo, int currentMonth, QString title);
 signals:
     void valueAtVerticalLineChanged(double value);
 };

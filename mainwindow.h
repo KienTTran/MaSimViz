@@ -77,9 +77,15 @@ private:
 private:
     void disabeInputWidgets();
     void enableInputWidgets();
-    void showWhenPlay();
-    void showWhenPause();
-    void displayDataInTable(int col, int row);
+    void showMedianMap();
+    void resetMedianMap();
+    void hideMedianItems();
+    void showItemsAfterBrowseClicked();
+    void showItemsAfterProcessClicked();
+    bool showItemsAfterRunClicked();
+    void showItemsAfterPauseClicked();
+    void resetPlayState();
+    void showChart();
 
 private:
     bool all_rasters_exist = false;
@@ -89,7 +95,6 @@ private:
     int currentMonth = 0;
     int currentColIndexPlaying = 0;
     QMap<int,QColor> currentLocationSelectedMap;
-    QPair<int,int> currenColRowSelected = qMakePair(0,0);
 
     bool inspectMode = false;
 

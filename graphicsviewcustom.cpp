@@ -242,7 +242,6 @@ void GraphicsViewCustom::displayAscDataMedian(QGraphicsScene *scene, const int c
 
         // Add the square to the scene
         scene->addItem(square);
-
     }
     scene->update();
 }

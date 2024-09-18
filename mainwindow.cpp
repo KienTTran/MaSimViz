@@ -41,14 +41,11 @@ MainWindow::MainWindow(QWidget *parent)
     vizData = new VizData();
 
     ui->le_sim_path->setText("/Users/ktt/Downloads/0ATest_input");
-    ui->slider_progress->setHidden(true);
-    ui->cb_db_list->setHidden(true);
     stopLoop = false;
-    ui->cb_show_chart->setHidden(true);
-    ui->gv_chartview->setHidden(true);
 
     scene = new QGraphicsScene(this);
     chart = new ChartCustom(this);
+    chart->setChartView(ui->gv_chartview);
 
     currentColIndexPlaying = 0;
     currentMonth = 0;
@@ -56,6 +53,8 @@ MainWindow::MainWindow(QWidget *parent)
 
     ui->graphicsView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     ui->graphicsView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+
+    hideMedianItems();
 }
 
 MainWindow::~MainWindow()
@@ -212,6 +211,52 @@ bool displaySqlDataInDialogWithChecklist(VizData* vizData, QWidget* parentWidget
     }
 }
 
+void MainWindow::on_cb_raster_list_currentIndexChanged(int index)
+{
+    LoaderRaster *loader = new LoaderRaster();
+    loader->loadFileSingle(ascFileList[index], vizData, nullptr, nullptr);
+
+    qDebug() << "ncols:" << vizData->rasterData->raster->NCOLS << " nrows:" << vizData->rasterData->raster->NROWS;
+
+    ui->graphicsView->setScene(scene);
+    ui->graphicsView->setRenderHint(QPainter::Antialiasing);
+    ui->graphicsView->setRenderHint(QPainter::TextAntialiasing);
+    ui->graphicsView->setRenderHint(QPainter::SmoothPixmapTransform);
+    ui->graphicsView->displayAscData(scene, vizData);
+
+    QObject::connect(ui->graphicsView, &GraphicsViewCustom::squareClickedOnScene, this, &MainWindow::onSquareClicked);
+}
+
+void MainWindow::onSquareClicked(const QPoint &pos, const QColor &color)
+{
+    int location = vizData->rasterData->locationPair2DTo1D[QPair<int,int>(pos.y(),pos.x())];
+    if(currentLocationSelectedMap.contains(location)){
+        currentLocationSelectedMap.remove(location);
+    }
+    else{
+        currentLocationSelectedMap[location] = color;
+    }
+
+    qDebug() << "[Main]Square select at:" << pos << "loc: " << location << "color: " << color;
+    if(ui->cb_db_list->isVisible()){
+        showChart();
+    }
+    else{
+        if(currentLocationSelectedMap.isEmpty()){
+            ui->statusbar->showMessage("No location selected");
+        }
+        else{
+            double data = vizData->rasterData->raster->data[pos.y()][pos.x()];
+            ui->statusbar->showMessage("Location: " + QString::number(location)
+                                       + "(row: " + QString::number(pos.y()) + ", col: " + QString::number(pos.x()) + ")"
+                                       + " Value: " + QString::number(data));
+        }
+    }
+}
+
+void MainWindow::onMouseMoved(const QPoint &pos)
+{
+}
 
 
 void MainWindow::on_bt_auto_load_folder_clicked()
@@ -262,24 +307,8 @@ void MainWindow::on_bt_auto_load_folder_clicked()
 
     if(all_rasters_exist){
         enableInputWidgets();
+        showItemsAfterBrowseClicked();
 
-        ui->progress_bar->setHidden(false);
-        ui->slider_progress->setHidden(true);
-
-        ui->cb_show_chart->setCheckState(Qt::Unchecked);
-        ui->cb_show_chart->setChecked(false);
-        ui->cb_show_chart->setHidden(true);
-
-        ui->cb_db_list->setHidden(true);
-        ui->cb_raster_list->setHidden(false);
-
-        ui->bt_run->setText("Run");
-        ui->progress_bar->setValue(0);
-        ui->slider_progress->setValue(0);
-        isRunning = false;
-        stopLoop = false;
-
-        ui->bt_run->setEnabled(false);
         ui->le_sim_path->setText(selectedDirectory);
 
         //Display only filenames in the combobox
@@ -293,56 +322,6 @@ void MainWindow::on_bt_auto_load_folder_clicked()
         model->setStringList(ascFileNameList);
         ui->cb_raster_list->setModel(model);
     }
-}
-
-
-void MainWindow::on_cb_raster_list_currentIndexChanged(int index)
-{
-    LoaderRaster *loader = new LoaderRaster();
-    loader->loadFileSingle(ascFileList[index], vizData, nullptr, nullptr);
-
-    qDebug() << "ncols:" << vizData->rasterData->raster->NCOLS << " nrows:" << vizData->rasterData->raster->NROWS;
-
-    ui->graphicsView->setScene(scene);
-    ui->graphicsView->setRenderHint(QPainter::Antialiasing);
-    ui->graphicsView->setRenderHint(QPainter::TextAntialiasing);
-    ui->graphicsView->setRenderHint(QPainter::SmoothPixmapTransform);
-    ui->graphicsView->displayAscData(scene, vizData);
-
-    QObject::connect(ui->graphicsView, &GraphicsViewCustom::squareClickedOnScene, this, &MainWindow::onSquareClicked);
-}
-
-void MainWindow::onSquareClicked(const QPoint &pos, const QColor &color)
-{
-    int location = vizData->rasterData->locationPair2DTo1D[QPair<int,int>(pos.y(),pos.x())];
-    if(currentLocationSelectedMap.contains(location)){
-        currentLocationSelectedMap.remove(location);
-    }
-    else{
-        currentLocationSelectedMap[location] = color;
-    }
-
-    currenColRowSelected = qMakePair(pos.x(),pos.y());
-    qDebug() << "[Main]Square select at:" << pos << "loc: " << location << "color: " << color;
-    if(ui->cb_show_chart->isChecked() && ui->gv_chartview->isHidden() == false){
-        chart->plotDataMedianMultipleLocations(ui->gv_chartview, vizData, currentColIndexPlaying, currentLocationSelectedMap, currentMonth, ui->cb_db_list->currentText());
-    }
-    else{
-        qDebug() << "Location: " << location;
-        double data = vizData->rasterData->raster->data[pos.y()][pos.x()];
-        ui->statusbar->showMessage("Location: " + QString::number(location)
-                                   + "(row: " + QString::number(pos.y()) + ", col: " + QString::number(pos.x()) + ")"
-                                   + " Value: " + QString::number(data));
-    }
-}
-
-void MainWindow::onMouseMoved(const QPoint &pos)
-{
-}
-
-void MainWindow::displayDataInTable(int col, int row)
-{
-    qDebug() << "Displaying data at:" << col << row;
 }
 
 void MainWindow::on_bt_process_clicked()
@@ -363,24 +342,10 @@ void MainWindow::on_bt_process_clicked()
         return;
     }      
 
-    currentColIndexPlaying = 0;
-    currentMonth = 0;
-    currentLocationSelectedMap = QMap<int,QColor>();
-    currenColRowSelected = QPair<int,int>(0,0);
+    resetMedianMap();
+    disabeInputWidgets();    
+    showItemsAfterProcessClicked();
 
-    disabeInputWidgets();
-    ui->progress_bar->setHidden(false);
-    ui->slider_progress->setHidden(true);
-
-    ui->cb_show_chart->setCheckState(Qt::Unchecked);
-    ui->cb_show_chart->setChecked(false);
-    ui->cb_show_chart->setHidden(true);
-
-    ui->bt_run->setText("Run");
-    ui->progress_bar->setValue(0);
-    ui->slider_progress->setValue(0);
-    isRunning = false;
-    stopLoop = false;
     ui->statusbar->showMessage("Loading database files...");
 
     if(vizData->sqlData.tableColumnMap.isEmpty()){
@@ -438,26 +403,11 @@ void MainWindow::on_bt_process_clicked()
                                                                        //Here load the only table because 1 table is allowed in this branch
                                                                        QStringList tableList = vizData->sqlData.tableColumnMap[vizData->sqlData.tableColumnMap.keys().last()].split(',');
                                                                        model->setStringList(tableList);
-                                                                       currentColIndexPlaying = 0;
                                                                        ui->cb_db_list->setModel(model);
 
-                                                                       ui->cb_show_chart->setHidden(false);
-
-                                                                       ui->graphicsView->resetGraphicsView();
-                                                                       ui->graphicsView->displayAscDataMedian(scene, currentColIndexPlaying, vizData, currentMonth);
-                                                                       ui->graphicsView->update();
-
-                                                                       QObject::connect(ui->cb_show_chart, &QCheckBox::stateChanged, this, [=](int state) {
-                                                                           ui->gv_chartview->setHidden(state == Qt::Unchecked);
-                                                                           if(state == Qt::Checked){
-                                                                               chart->plotDataMedianMultipleLocations(ui->gv_chartview, vizData, currentColIndexPlaying, currentLocationSelectedMap, currentMonth, ui->cb_db_list->currentText());
-                                                                               // ui->statusbar->showMessage("Month: " + QString::number(currentMonth) + " Year: " + QString::number(currentMonth / 12) + " Value: " + QString::number(yValue));
-
-                                                                           }else{
-                                                                           }
-                                                                       });
-
-                                                                       showWhenPlay();
+                                                                       resetMedianMap();
+                                                                       showItemsAfterProcessClicked();
+                                                                       showMedianMap();
                                                                        enableInputWidgets();
                                                                    }, Qt::QueuedConnection);
                                                                });
@@ -467,20 +417,9 @@ void MainWindow::on_bt_process_clicked()
 
 void MainWindow::on_bt_run_clicked()
 {
-    if (isRunning) {
-        // If running, pause the loop
-        stopLoop = true;
-        isRunning = false;
-        ui->bt_run->setText("Run");
-        qDebug() << "Paused at month:" << currentMonth;
-        return;
-    }
-
     // Otherwise, start or resume the loop
-    ui->bt_run->setText("Pause");
-    showWhenPlay();
-    isRunning = true;
-    stopLoop = false;
+    if(showItemsAfterRunClicked())
+        return;
 
     QFutureWatcher<void> *futureWatcher = new QFutureWatcher<void>(this);
 
@@ -489,20 +428,13 @@ void MainWindow::on_bt_run_clicked()
         for (int month = currentMonth; month < vizData->statsData[currentColIndexPlaying].median.size(); month++) {
             // Check if the loop should be stopped
             if (stopLoop) {
-                currentMonth = month;  // Save the current month to resume from
-                qDebug() << "Stopped at month:" << currentMonth;
+                currentMonth = month;
                 break;
             }
-
-            QMetaObject::invokeMethod(this, [=]() {
-                ui->graphicsView->displayAscDataMedian(scene, currentColIndexPlaying, vizData, month);
-                ui->graphicsView->update();
-            }, Qt::QueuedConnection);
 
             // Progress bar needs to be updated in the main thread
             QMetaObject::invokeMethod(this, [=]() {
                 ui->slider_progress->setValue(month * 100 / vizData->statsData[currentColIndexPlaying].median.size());
-                // ui->statusbar->showMessage("Month: " + QString::number(currentMonth) + " Year: " + QString::number(currentMonth / 12) + " Value: " + QString::number(yValue));
             }, Qt::QueuedConnection);
 
             // Sleep for 50 milliseconds to simulate processing time
@@ -518,13 +450,8 @@ void MainWindow::on_bt_run_clicked()
         // Reset the state when processing finishes
         if (!stopLoop)
         {
-            currentMonth = 0;  // Reset the month after completion
-            ui->slider_progress->setValue(0);
-            ui->bt_run->setText("Run");
-            ui->statusbar->showMessage("Playing complete.");
+            resetPlayState();
         }
-        isRunning = false;
-        stopLoop = false;
     });
 }
 
@@ -572,12 +499,38 @@ void MainWindow::on_le_sim_path_returnPressed()
     }
 }
 
+void MainWindow::on_slider_progress_valueChanged(int value)
+{
+    currentMonth = value * vizData->statsData[currentColIndexPlaying].median.size() / 100;
+    if (currentMonth >= vizData->statsData[currentColIndexPlaying].median.size()) {
+        currentMonth = vizData->statsData[currentColIndexPlaying].median.size() - 1;
+    }
+    showMedianMap();
+    showChart();
+    ui->statusbar->showMessage("Month: " + QString::number(currentMonth) + " Year: " + QString::number(currentMonth / 12));
+}
+
+
+void MainWindow::on_slider_progress_sliderMoved(int position)
+{
+    isRunning = false;
+    stopLoop = true;
+}
+
+void MainWindow::on_cb_db_list_currentIndexChanged(int index)
+{
+    currentColIndexPlaying = index;
+    showMedianMap();
+    showChart();
+}
+
 void MainWindow::disabeInputWidgets(){
     ui->le_sim_path->setEnabled(false);
     ui->bt_process->setEnabled(false);
     ui->cb_raster_list->setEnabled(false);
     ui->bt_auto_load_folder->setEnabled(false);
     ui->bt_run->setEnabled(false);
+    ui->graphicsView->setEnabled(false);
 }
 
 void MainWindow::enableInputWidgets(){
@@ -587,51 +540,80 @@ void MainWindow::enableInputWidgets(){
     ui->bt_auto_load_folder->setEnabled(true);
     ui->progress_bar->setValue(0);
     ui->bt_run->setEnabled(true);
+    ui->graphicsView->setEnabled(true);
 }
 
-void MainWindow::showWhenPlay(){
-    ui->cb_db_list->setHidden(false);
-    ui->cb_raster_list->setHidden(true);
-    ui->progress_bar->setHidden(true);
-    ui->slider_progress->setHidden(false);
+void MainWindow::resetMedianMap(){
+    currentColIndexPlaying = 0;
+    currentMonth = 0;
+    currentLocationSelectedMap.clear();
+    ui->graphicsView->resetGraphicsView();
+    ui->gv_chartview->setHidden(currentLocationSelectedMap.isEmpty());
 }
 
-void MainWindow::showWhenPause(){
-    ui->cb_db_list->setHidden(true);
-    ui->cb_raster_list->setHidden(false);
-    ui->progress_bar->setHidden(false);
-    ui->slider_progress->setHidden(true);
-}
-
-
-void MainWindow::on_slider_progress_valueChanged(int value)
-{
-    currentMonth = value * vizData->statsData[currentColIndexPlaying].median.size() / 100;
-    if (currentMonth >= vizData->statsData[currentColIndexPlaying].median.size()) {
-        currentMonth = vizData->statsData[currentColIndexPlaying].median.size() - 1;
-    }
+void MainWindow::showMedianMap(){
     ui->graphicsView->displayAscDataMedian(scene, currentColIndexPlaying, vizData, currentMonth);
     ui->graphicsView->update();
-    chart->plotDataMedianMultipleLocations(ui->gv_chartview, vizData, currentColIndexPlaying, currentLocationSelectedMap, currentMonth, ui->cb_db_list->currentText());
 }
 
-
-void MainWindow::on_slider_progress_sliderMoved(int position)
-{
-    isRunning = false;
-    stopLoop = true;
-    ui->bt_run->setText("Run");
-}
-
-void MainWindow::on_cb_db_list_currentIndexChanged(int index)
-{
-    currentColIndexPlaying = index;
-    if(!isRunning){
-        ui->graphicsView->displayAscDataMedian(scene, currentColIndexPlaying, vizData, currentMonth);
-        ui->graphicsView->update();
-        chart->plotDataMedianMultipleLocations(ui->gv_chartview, vizData, currentColIndexPlaying, currentLocationSelectedMap, currentMonth, ui->cb_db_list->currentText());
-        // ui->statusbar->showMessage("Month: " + QString::number(currentMonth) + " Year: " + QString::number(currentMonth / 12) + " Value: " + QString::number(yValue));
+void MainWindow::showChart(){
+    ui->gv_chartview->setHidden(currentLocationSelectedMap.isEmpty());
+    if(ui->gv_chartview->isVisible()){
+        chart->plotDataMedianMultipleLocations(vizData, currentColIndexPlaying, currentLocationSelectedMap, currentMonth, ui->cb_db_list->currentText());
     }
-
 }
+
+void MainWindow::hideMedianItems(){
+    ui->slider_progress->setHidden(true);
+    ui->cb_db_list->setHidden(true);
+    ui->gv_chartview->setHidden(true);
+}
+
+void MainWindow::showItemsAfterBrowseClicked(){
+    ui->cb_raster_list->setHidden(false);
+    ui->cb_db_list->setHidden(ui->cb_raster_list->isVisible());
+    ui->slider_progress->setHidden(true);
+    ui->progress_bar->setHidden(ui->slider_progress->isVisible());
+    ui->slider_progress->setValue(0);
+    ui->progress_bar->setValue(0);
+    ui->bt_run->setEnabled(false);
+}
+
+void MainWindow::showItemsAfterProcessClicked(){
+    ui->cb_db_list->setHidden(false);
+    ui->cb_raster_list->setHidden(ui->cb_db_list->isVisible());
+    ui->slider_progress->setHidden(true);
+    ui->progress_bar->setHidden(ui->slider_progress->isVisible());
+    ui->slider_progress->setValue(0);
+    ui->progress_bar->setValue(0);
+    isRunning = false;
+    stopLoop = false;
+}
+
+bool MainWindow::showItemsAfterRunClicked(){
+    if (isRunning) {
+        // If running, pause the loop
+        stopLoop = true;
+        isRunning = false;
+        ui->bt_run->setText("Run");
+        return true;
+    }
+    ui->bt_run->setText("Pause");
+    isRunning = true;
+    stopLoop = false;
+    if(ui->progress_bar->isVisible()){
+        ui->progress_bar->setHidden(true);
+    }
+    ui->slider_progress->setHidden(ui->progress_bar->isVisible());
+    return false;
+}
+
+void MainWindow::resetPlayState(){
+    isRunning = false;
+    stopLoop = false;
+    ui->bt_run->setText("Run");
+    ui->progress_bar->setValue(0);
+    ui->statusbar->showMessage("Playing complete.");
+}
+
 
