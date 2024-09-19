@@ -98,6 +98,7 @@ private:
 
     bool inspectMode = false;
 
-
+signals:
+    void addClearButton(bool show);
 };
 #endif // MAINWINDOW_H

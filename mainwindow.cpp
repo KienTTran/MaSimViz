@@ -25,6 +25,7 @@
 #include <QCheckBox>
 #include <QHeaderView>
 #include <QDebug>
+#include <QLabel>
 #include <QList>
 #include <QStandardItemModel>
 
@@ -38,29 +39,33 @@ MainWindow::MainWindow(QWidget *parent)
     , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
-    vizData = new VizData();
-
-    ui->le_sim_path->setText("/Users/ktt/Downloads/0ATest_input");
-    stopLoop = false;
-
     scene = new QGraphicsScene(this);
-    chart = new ChartCustom(this);
-    chart->setChartView(ui->gv_chartview);
-
-    currentColIndexPlaying = 0;
-    currentMonth = 0;
-    currentLocationSelectedMap = QMap<int,QColor>();
-
-    ui->graphicsView->setScene(scene);
+    ui->graphicsView->setSceneCustom(scene);
     ui->graphicsView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     ui->graphicsView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     ui->graphicsView->setRenderHint(QPainter::Antialiasing);
     ui->graphicsView->setRenderHint(QPainter::TextAntialiasing);
     ui->graphicsView->setRenderHint(QPainter::SmoothPixmapTransform);
 
+    vizData = new VizData();
+    ui->graphicsView->setVizData(vizData);
+
+    ui->le_sim_path->setText("/Users/ktt/Downloads/0ATest_input");
+    stopLoop = false;
+
+    chart = new ChartCustom(this);
+    chart->setChartView(ui->gv_chartview);
+    chart->setVizData(vizData);
+
+    currentColIndexPlaying = 0;
+    currentMonth = 0;
+    currentLocationSelectedMap = QMap<int,QColor>();
+
     ui->wg_color_map->setHidden(true);
 
     QObject::connect(ui->graphicsView, &GraphicsViewCustom::squareClickedOnScene, this, &MainWindow::onSquareClicked);
+    QObject::connect(this, &MainWindow::addClearButton, ui->graphicsView, &GraphicsViewCustom::showClearButton);
+
 
     hideMedianItems();
 }
@@ -89,10 +94,11 @@ QStringList searchForFilesWithPattern(const QString &directoryPath, QString patt
 }
 
 // Function to display sqlData in a dialog with checkable columns in a checklist per tab
+// Function to display sqlData in a dialog with checkable columns in a checklist per tab
 bool displaySqlDataInDialogWithChecklist(VizData* vizData, QWidget* parentWidget = nullptr) {
     // Create the dialog
     QDialog* dialog = new QDialog(parentWidget);
-    dialog->setWindowTitle("SQL Data Viewer with Checklists");
+    dialog->setWindowTitle("Select columns to plot");
     dialog->resize(600, 400); // Set an initial size for the dialog
     dialog->setWindowFlags(Qt::Dialog | Qt::CustomizeWindowHint | Qt::WindowTitleHint);
 
@@ -134,17 +140,14 @@ bool displaySqlDataInDialogWithChecklist(VizData* vizData, QWidget* parentWidget
             for (int columnIndex = 0; columnIndex < columnCount; ++columnIndex) {
                 QString columnName = vizData->sqlData.dbColumns[tableIndex][columnIndex];
 
-                // Disable column locationID and monthID checkbox
-                if (columnName != vizData->sqlData.locationID && columnName != vizData->sqlData.monthID) {
-                    // Create a checkbox item
-                    QCheckBox *checkBox = new QCheckBox();
-                    tableWidget->setCellWidget(columnIndex, 0, checkBox); // Add the checkbox to the first column
-                    checkBox->setChecked(checkBoxStatus[tableName][columnIndex]);  // Set the checkbox state
-                    // Capture the checkbox state when it is changed
-                    QObject::connect(checkBox, &QCheckBox::stateChanged, [tableName, columnIndex, &checkBoxStatus](int state) {
-                        checkBoxStatus[tableName][columnIndex] = (state == Qt::Checked);  // Update the checkbox status
-                    });
-                }
+                // Create a checkbox item
+                QCheckBox *checkBox = new QCheckBox();
+                tableWidget->setCellWidget(columnIndex, 0, checkBox); // Add the checkbox to the first column
+                checkBox->setChecked(checkBoxStatus[tableName][columnIndex]);  // Set the checkbox state
+                // Capture the checkbox state when it is changed
+                QObject::connect(checkBox, &QCheckBox::stateChanged, [tableName, columnIndex, &checkBoxStatus](int state) {
+                    checkBoxStatus[tableName][columnIndex] = (state == Qt::Checked);  // Update the checkbox status
+                });
 
                 // Create an item for the column name
                 QTableWidgetItem* item = new QTableWidgetItem(columnName);
@@ -160,6 +163,26 @@ bool displaySqlDataInDialogWithChecklist(VizData* vizData, QWidget* parentWidget
         }
     }
 
+    // Create QLineEdit fields for locationID and monthID
+    QLineEdit* locationIdEdit = new QLineEdit(dialog);
+    locationIdEdit->setPlaceholderText(vizData->sqlData.locationID + " (default)");
+
+    QLineEdit* monthIdEdit = new QLineEdit(dialog);
+    monthIdEdit->setPlaceholderText(vizData->sqlData.monthID + " (default)");
+
+    // Create labels for the LocationID and MonthID fields
+    QLabel* locationIdLabel = new QLabel("LocationID column name:", dialog);
+    QLabel* monthIdLabel = new QLabel("MonthID column name:", dialog);
+
+    // Create layouts to hold the label and text field side by side
+    QHBoxLayout* locationIdLayout = new QHBoxLayout();
+    locationIdLayout->addWidget(locationIdLabel);
+    locationIdLayout->addWidget(locationIdEdit);
+
+    QHBoxLayout* monthIdLayout = new QHBoxLayout();
+    monthIdLayout->addWidget(monthIdLabel);
+    monthIdLayout->addWidget(monthIdEdit);
+
     // Create a QDialogButtonBox with OK and Cancel buttons
     QDialogButtonBox* buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
 
@@ -169,8 +192,14 @@ bool displaySqlDataInDialogWithChecklist(VizData* vizData, QWidget* parentWidget
 
     // Create a layout for the dialog
     QVBoxLayout* layout = new QVBoxLayout(dialog);
-    layout->addWidget(tabWidget);   // Add the QTabWidget to the layout
-    layout->addWidget(buttonBox);   // Add the button box to the layout
+    layout->addWidget(tabWidget);      // Add the QTabWidget to the layout
+    layout->addLayout(locationIdLayout); // Add the location ID label and text field
+    layout->addLayout(monthIdLayout);    // Add the month ID label and text field
+    layout->addWidget(buttonBox);      // Add the button box to the layout
+
+    // Set the layout for the dialog
+    dialog->setLayout(layout);
+
 
     // Set the layout for the dialog
     dialog->setLayout(layout);
@@ -195,6 +224,11 @@ bool displaySqlDataInDialogWithChecklist(VizData* vizData, QWidget* parentWidget
     if (dialog->result() == QDialog::Accepted) {
         vizData->sqlData.tableColumnMap.clear(); // Clear the previous column map
         qDebug() << "Dialog accepted";  // Add this for debugging
+        QString locationID = locationIdEdit->text();  // Capture locationID
+        QString monthID = monthIdEdit->text();        // Capture monthID
+        qDebug() << "Location :" << locationID;
+        qDebug() << "Month ID:" << monthID;
+
         for (const QString& tableName : checkBoxStatus.keys()) {
             int tableIndex = vizData->sqlData.dbTables.indexOf(tableName);
             QString selectedColumns = "";
@@ -219,6 +253,7 @@ bool displaySqlDataInDialogWithChecklist(VizData* vizData, QWidget* parentWidget
     }
 }
 
+
 void MainWindow::on_cb_raster_list_currentIndexChanged(int index)
 {
     LoaderRaster *loader = new LoaderRaster();
@@ -227,7 +262,8 @@ void MainWindow::on_cb_raster_list_currentIndexChanged(int index)
     qDebug() << "ncols:" << vizData->rasterData->raster->NCOLS << " nrows:" << vizData->rasterData->raster->NROWS;
 
     ui->wg_color_map->setColorMapMinMax(QPair<double,double>(vizData->rasterData->dataMin, vizData->rasterData->dataMax));
-    ui->graphicsView->displayAscData(scene, vizData);
+
+    ui->graphicsView->updateRasterData();
 }
 
 void MainWindow::onSquareClicked(const QPoint &pos, const QColor &color)
@@ -237,7 +273,13 @@ void MainWindow::onSquareClicked(const QPoint &pos, const QColor &color)
         currentLocationSelectedMap.remove(location);
     }
     else{
-        currentLocationSelectedMap[location] = color;
+        if(pos.x() == -1 && pos.y() == -1){
+            currentLocationSelectedMap.clear();
+            qDebug() << "[Main]Clear all locations";
+        }
+        else{
+            currentLocationSelectedMap[location] = color;
+        }
     }
 
     qDebug() << "[Main]Square select at:" << pos << "loc: " << location << "color: " << color;
@@ -255,6 +297,8 @@ void MainWindow::onSquareClicked(const QPoint &pos, const QColor &color)
                                        + " Value: " + QString::number(data));
         }
     }
+
+    emit(addClearButton(!currentLocationSelectedMap.empty()));
 }
 
 void MainWindow::onMouseMoved(const QPoint &pos)
@@ -338,9 +382,6 @@ void MainWindow::on_bt_process_clicked()
     loader = new LoaderSQLite();
 
     loader->loadFileSingle(dbFileList[0], vizData, nullptr, nullptr);
-
-    vizData->sqlData.locationID = "locationid";
-    vizData->sqlData.monthID = "monthlydataid";
 
     if(!displaySqlDataInDialogWithChecklist(vizData, this)){
         return;
@@ -559,14 +600,14 @@ void MainWindow::resetMedianMap(){
 
 void MainWindow::showMedianMap(){
     ui->wg_color_map->setColorMapMinMax(QPair<double,double>(vizData->statsData[currentColIndexPlaying].medianMin, vizData->statsData[currentColIndexPlaying].medianMax));
-    ui->graphicsView->displayAscDataMedian(scene, currentColIndexPlaying, vizData, currentMonth);
+    ui->graphicsView->updateRasterDataMedian(currentColIndexPlaying, currentMonth);
     ui->graphicsView->update();
 }
 
 void MainWindow::showChart(){
     ui->gv_chartview->setHidden(currentLocationSelectedMap.isEmpty());
     if(ui->gv_chartview->isVisible()){
-        chart->plotDataMedianMultipleLocations(vizData, currentColIndexPlaying, currentLocationSelectedMap, currentMonth, ui->cb_db_list->currentText());
+        chart->plotDataMedianMultipleLocations(currentColIndexPlaying, currentLocationSelectedMap, currentMonth, ui->cb_db_list->currentText());
     }
 }
 
@@ -585,6 +626,7 @@ void MainWindow::showItemsAfterBrowseClicked(){
     ui->progress_bar->setValue(0);
     ui->bt_run->setEnabled(false);
     ui->wg_color_map->setHidden(false);
+    ui->gv_chartview->setHidden(true);
 }
 
 void MainWindow::showItemsAfterProcessClicked(){

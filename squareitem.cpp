@@ -3,17 +3,33 @@
 #include <QPen>
 #include <QRandomGenerator>
 
-SquareItem::SquareItem(int col, int row, double x, double y, double width, double height, bool selected, QColor color, QGraphicsItem *parent) : QGraphicsRectItem(parent){
-    setRect(x, y, width, height);
+SquareItem::SquareItem(QGraphicsItem *parent) : QGraphicsRectItem(parent){
+}
+
+SquareItem::SquareItem(int col, int row, QGraphicsItem *parent) : QGraphicsRectItem(parent){
+    squareSize = 25;
+    cellSize = 30;
+    setRect(col*cellSize, row*cellSize, squareSize, squareSize);
     squareColRow = QPoint(col, row);
+    isSelected = false;
+    setSelection(isSelected);
+    brush = QBrush(Qt::GlobalColor::gray);
+}
+
+void SquareItem::setSelection(bool selected){
     isSelected = selected;
-    selectedColor = color;
     if(isSelected){
+        selectedColor = QColor::fromRgb(QRandomGenerator::global()->generate());
         setPen(QPen(selectedColor, 5.0));
     }
     else{
+        selectedColor = Qt::black;
         setPen(QPen(Qt::black, 0.5));
     }
+}
+
+void SquareItem::setBrushCustom(QBrush brush){
+    setBrush(brush);
 }
 
 void SquareItem::mousePressEvent(QGraphicsSceneMouseEvent *event){
@@ -22,14 +38,7 @@ void SquareItem::mousePressEvent(QGraphicsSceneMouseEvent *event){
     if(event->button() == Qt::LeftButton){
         isSelected = !isSelected;  // Toggle the selection state
 
-        if(isSelected){
-            selectedColor = QColor::fromRgb(QRandomGenerator::global()->generate());
-            setPen(QPen(selectedColor, 5.0));
-        }
-        else{
-            selectedColor = Qt::black;
-            setPen(QPen(Qt::black, 0.5));
-        }
+        setSelection(isSelected);  // Update the visual appearance
 
         qDebug() << "[Square] select at:" << squareColRow << "color: " << selectedColor;
 

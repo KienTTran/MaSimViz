@@ -3,7 +3,7 @@
 #include <QAreaSeries>
 #include <QLegendMarker>
 #include <QCategoryAxis>
-
+#include <QTimer>
 #include "chartcustom.h"
 
 ChartCustom::ChartCustom(QObject *parent)
@@ -12,13 +12,15 @@ ChartCustom::ChartCustom(QObject *parent)
     verticalLine = nullptr;
 }
 
-#include <QTimer>
+void ChartCustom::setVizData(VizData *vizData){
+    this->vizData = vizData;
+}
 
 void ChartCustom::setChartView(QChartView *chartView){
     this->chartView = chartView;
 }
 
-void ChartCustom::plotDataMedianMultipleLocations(VizData *vizData, int colIndex, QMap<int,QColor> locInfo, int currentMonth, QString title) {
+void ChartCustom::plotDataMedianMultipleLocations(int colIndex, QMap<int,QColor> locInfo, int currentMonth, QString title) {
     // Check if the median data is available
     if (vizData->statsData[colIndex].median.isEmpty()) {
         return;

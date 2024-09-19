@@ -36,8 +36,8 @@ public:
         QList<QString> dbPaths;
         QList<QString> dbTables;
         QMap<int,QMap<int,QString>> dbColumns;
-        QString locationID;
-        QString monthID;
+        QString locationID = "locationid";
+        QString monthID = "monthlydataid";
         QMap<QString,QString> tableColumnMap;
     };
 
