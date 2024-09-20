@@ -108,7 +108,7 @@
            </widget>
           </item>
           <item>
-           <widget class="QComboBox" name="cb_db_list"/>
+           <widget class="QComboBox" name="cb_col_name_list"/>
           </item>
           <item>
            <widget class="QPushButton" name="bt_process">
@@ -151,8 +151,14 @@
           </item>
           <item>
            <widget class="QSlider" name="slider_progress">
+            <property name="minimum">
+             <number>0</number>
+            </property>
             <property name="maximum">
              <number>100</number>
+            </property>
+            <property name="singleStep">
+             <number>0</number>
             </property>
             <property name="orientation">
              <enum>Qt::Orientation::Horizontal</enum>

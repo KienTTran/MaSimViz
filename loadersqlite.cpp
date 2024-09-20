@@ -116,7 +116,7 @@ void processDatabase(const QString &dbPath, int dbIndex, const QString &location
         if (loc >= 0 && loc < numLocations && month >= 0 && month < numMonths) {
             for (int colIndex = 0; colIndex < columnList.size(); ++colIndex) {
                 double value = query.value(2 + colIndex).toDouble();
-                vizData->statsData[colIndex].data[dbIndex][loc][month] = value;
+                vizData->statsData[columnList[colIndex]].data[dbIndex][loc][month] = value;
             }
         }
     }
@@ -143,10 +143,10 @@ void LoaderSQLite::loadDBList(const QStringList &dbPathList, const QString locat
         return;
     }
     else{
-        qDebug() << "Columns: " << columns;
-        qDebug() << "Table: " << tableName;
-        qDebug() << "Location ID: " << locationID;
-        qDebug() << "Month ID: " << monthID;
+        qDebug() << "[LoadDBList]Columns: " << columns;
+        qDebug() << "[LoadDBList]Table: " << tableName;
+        qDebug() << "[LoadDBList]Location ID: " << locationID;
+        qDebug() << "[LoadDBList]Month ID: " << monthID;
     }
     QStringList columnList = QStringList();
     if(columns.contains(',')){
@@ -167,7 +167,7 @@ void LoaderSQLite::loadDBList(const QStringList &dbPathList, const QString locat
                 stats.data[dbIndex][locIndex].resize(vizData->monthCountStartToEnd);
             }
         }
-        vizData->statsData.append(stats);
+        vizData->statsData[columnList[i]] = stats;
     }
 
     // Progress tracking

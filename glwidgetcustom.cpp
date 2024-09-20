@@ -554,7 +554,7 @@ void GLWidgetCustom::wheelEvent(QWheelEvent *event)
 }
 
 
-void GLWidgetCustom::updateInstanceDataMedian(int dataIndex, int month)
+void GLWidgetCustom::updateInstanceDataMedian(QString colName, int month)
 {
     // Set instance offsets based on rasterData
     instanceColors.clear();
@@ -565,12 +565,12 @@ void GLWidgetCustom::updateInstanceDataMedian(int dataIndex, int month)
         return (1.0f - factor) * color1 + factor * color2;
     };
 
-    double minValue = vizData->statsData[dataIndex].medianMin;
-    double maxValue = vizData->statsData[dataIndex].medianMax;
+    double minValue = vizData->statsData[colName].medianMin;
+    double maxValue = vizData->statsData[colName].medianMax;
 
     // Loop through rasterData to get valid positions and set colors based on value
-    for (int loc = 0; loc < vizData->statsData[dataIndex].median[month].size(); ++loc) {
-        double value = vizData->statsData[dataIndex].median[month][loc];
+    for (int loc = 0; loc < vizData->statsData[colName].median[month].size(); ++loc) {
+        double value = vizData->statsData[colName].median[month][loc];
 
         // Ensure value is within the valid range
         if (value < minValue) {

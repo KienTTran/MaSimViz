@@ -43,7 +43,7 @@ public:
     void adjustZoomLevel(int zoomLevel);
     void initSquareItems();
     Q_INVOKABLE void updateRasterData();
-    Q_INVOKABLE void updateRasterDataMedian(const int colIndex, int month);
+    Q_INVOKABLE void updateRasterDataMedian(const QString colName, int month);
 private:
     bool isPanning;  // Flag to track whether panning is active
     QPoint lastMousePos;  // Last recorded mouse position

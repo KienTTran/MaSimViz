@@ -217,20 +217,25 @@ void GraphicsViewCustom::updateRasterData() {
     scene()->update();
 }
 
-void GraphicsViewCustom::updateRasterDataMedian(const int colIndex, int month) {
+void GraphicsViewCustom::updateRasterDataMedian(const QString colName, int month) {
 
     if(squareItemList.isEmpty()){
         initSquareItems();
         initSquareScene();
     }
 
+    if(colName.isEmpty()){
+        qDebug() << "[GraphicsViewCustom] Column name is empty!";
+        return;
+    }
+
     for(int loc = 0; loc < vizData->rasterData->nLocations; loc++){
         int row = vizData->rasterData->locationPair1DTo2D[loc].first;
         int col = vizData->rasterData->locationPair1DTo2D[loc].second;
-        double value = vizData->statsData[colIndex].median[month][loc];
+        double value = vizData->statsData[colName].median[month][loc];
 
         // Normalize the value to range [0, 1] based on min and max values
-        float normalizedValue = (static_cast<float>(value) - vizData->statsData[colIndex].medianMin) / (vizData->statsData[colIndex].medianMax - vizData->statsData[colIndex].medianMin);
+        float normalizedValue = (static_cast<float>(value) - vizData->statsData[colName].medianMin) / (vizData->statsData[colName].medianMax - vizData->statsData[colName].medianMin);
 
         // Determine which color stop range this value falls into
         int nColorSteps = vizData->colorMap.size() - 1;

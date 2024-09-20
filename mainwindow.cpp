@@ -57,7 +57,7 @@ MainWindow::MainWindow(QWidget *parent)
     chart->setChartView(ui->gv_chartview);
     chart->setVizData(vizData);
 
-    currentColIndexPlaying = 0;
+    currentColNameShown = "";
     currentMonth = 0;
     currentLocationSelectedMap = QMap<int,QColor>();
 
@@ -133,6 +133,7 @@ bool displaySqlDataInDialogWithChecklist(VizData* vizData, QWidget* parentWidget
             tableWidget->setHorizontalHeaderLabels(QStringList() << "Select?" << "Column Names");
             tableWidget->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch); // Stretch columns to fit
             tableWidget->setRowCount(columnCount); // Set the number of rows for the current table
+            tableWidget->setEditTriggers(QAbstractItemView::NoEditTriggers);
 
             tableWidgets.append(tableWidget); // Store table widget reference for later use
 
@@ -171,8 +172,8 @@ bool displaySqlDataInDialogWithChecklist(VizData* vizData, QWidget* parentWidget
     monthIdEdit->setPlaceholderText(vizData->sqlData.monthID + " (default)");
 
     // Create labels for the LocationID and MonthID fields
-    QLabel* locationIdLabel = new QLabel("LocationID column name:", dialog);
-    QLabel* monthIdLabel = new QLabel("MonthID column name:", dialog);
+    QLabel* locationIdLabel = new QLabel("Location column name:", dialog);
+    QLabel* monthIdLabel = new QLabel("Month column name:", dialog);
 
     // Create layouts to hold the label and text field side by side
     QHBoxLayout* locationIdLayout = new QHBoxLayout();
@@ -222,7 +223,7 @@ bool displaySqlDataInDialogWithChecklist(VizData* vizData, QWidget* parentWidget
 
     // After the dialog is accepted, you can access the selected columns for each table like this:
     if (dialog->result() == QDialog::Accepted) {
-        vizData->sqlData.tableColumnMap.clear(); // Clear the previous column map
+        vizData->sqlData.tableColumnsMap.clear(); // Clear the previous column map
         qDebug() << "Dialog accepted";  // Add this for debugging
         QString locationID = locationIdEdit->text();  // Capture locationID
         QString monthID = monthIdEdit->text();        // Capture monthID
@@ -239,15 +240,15 @@ bool displaySqlDataInDialogWithChecklist(VizData* vizData, QWidget* parentWidget
             }
             if (!selectedColumns.isEmpty()) {
                 selectedColumns.chop(1); // Remove the last comma
-                vizData->sqlData.tableColumnMap[tableName] = selectedColumns;
+                vizData->sqlData.tableColumnsMap[tableName] = selectedColumns;
             }
         }
-        for (const QString& tableName : vizData->sqlData.tableColumnMap.keys()) {
-            qDebug() << "Table:" << tableName << " Columns:" << vizData->sqlData.tableColumnMap[tableName];
+        for (const QString& tableName : vizData->sqlData.tableColumnsMap.keys()) {
+            qDebug() << "Table:" << tableName << " Columns:" << vizData->sqlData.tableColumnsMap[tableName];
         }
         return true;
     } else {
-        vizData->sqlData.tableColumnMap.clear();
+        vizData->sqlData.tableColumnsMap.clear();
         qDebug() << "Dialog rejected";  // Add this for debugging if Cancel is pressed or dialog is closed
         return false;
     }
@@ -283,7 +284,7 @@ void MainWindow::onSquareClicked(const QPoint &pos, const QColor &color)
     }
 
     qDebug() << "[Main]Square select at:" << pos << "loc: " << location << "color: " << color;
-    if(ui->cb_db_list->isVisible()){
+    if(ui->cb_col_name_list->isVisible()){
         showChart();
     }
     else{
@@ -358,6 +359,7 @@ void MainWindow::on_bt_auto_load_folder_clicked()
         showItemsAfterBrowseClicked();
 
         ui->le_sim_path->setText(selectedDirectory);
+        vizData->currentDirectory = selectedDirectory;
 
         //Display only filenames in the combobox
         QStringList ascFileNameList;
@@ -387,23 +389,20 @@ void MainWindow::on_bt_process_clicked()
         return;
     }      
 
-    resetMedianMap();
-    disabeInputWidgets();    
-    showItemsAfterProcessClicked();
-
     ui->statusbar->showMessage("Loading database files...");
 
-    if(vizData->sqlData.tableColumnMap.isEmpty()){
+    if(vizData->sqlData.tableColumnsMap.isEmpty()){
         QMessageBox::information(this, "Information", "No columns selected.");
-        enableInputWidgets();
         return;
     }
+
+    disabeInputWidgets();
 
     loader->loadDBList(dbFileList,
                        vizData->sqlData.locationID,
                        vizData->sqlData.monthID,
-                       vizData->sqlData.tableColumnMap[vizData->sqlData.tableColumnMap.keys().last()],
-                       vizData->sqlData.tableColumnMap.keys().last(), vizData,
+                       vizData->sqlData.tableColumnsMap[vizData->sqlData.tableColumnsMap.keys().last()],
+                       vizData->sqlData.tableColumnsMap.keys().last(), vizData,
                        [this](int progress) {  // Progress callback
                             QMetaObject::invokeMethod(this, [this, progress]() {
                                 ui->progress_bar->setValue(progress);  // Update the progress bar value
@@ -415,47 +414,21 @@ void MainWindow::on_bt_process_clicked()
                                qDebug() << "Loading complete!";
                                ui->statusbar->showMessage("Loading database complete!");
 
-                               for(int i = 0; i < vizData->statsData.size(); i++){
-                                   for (int j = 0; j < vizData->statsData[i].data.size(); j++) {
-                                       qDebug() << "Data:" << i << "j:" << vizData->statsData[i].data[j][150][150];
+                               for(QString colName : vizData->statsData.keys()){
+                                   for (int j = 0; j < vizData->statsData[colName].data.size(); j++) {
+                                       qDebug() << "Data:" << colName << "j:" << vizData->statsData[colName].data[j][150][150];
                                    }
                                }
 
-                               // Dynamically allocate the DataProcessor object
-                               dataProcessor = new DataProcessor();
-
-                               dataProcessor->processStatsData(vizData,
-                                                               [this](int progress) {  // Progress callback
-                                                                   QMetaObject::invokeMethod(this, [this, progress]() {
-                                                                       ui->progress_bar->setValue(progress);  // Update the progress bar value
-                                                                       ui->statusbar->showMessage("Calculating IQR ... " + QString::number(progress) + "%");
-                                                                   }, Qt::QueuedConnection);
-                                                               },
-                                                               [this]() {  // Completion callback
-                                                                   QMetaObject::invokeMethod(this, [this]() {
-                                                                       qDebug() << "Calculating IQR complete!";
-                                                                       ui->statusbar->showMessage("Calculating IQR complete!");
-
-                                                                       for(int i = 0; i < vizData->statsData.size(); i++){
-                                                                           qDebug() << "Month 150 5 150: " << vizData->statsData[i].iqr5[150][150];
-                                                                           qDebug() << "Month 150 25 150: " << vizData->statsData[i].iqr25[150][150];
-                                                                           qDebug() << "Month 150 Median 150: " << vizData->statsData[i].median[150][150];
-                                                                           qDebug() << "Month 150 75 150: " << vizData->statsData[i].iqr75[150][150];
-                                                                           qDebug() << "Month 150 95 150: " << vizData->statsData[i].iqr95[150][150];
-                                                                       }
-
-                                                                       QStringListModel *model = new QStringListModel(this);
-                                                                       //Here load the only table because 1 table is allowed in this branch
-                                                                       QStringList tableList = vizData->sqlData.tableColumnMap[vizData->sqlData.tableColumnMap.keys().last()].split(',');
-                                                                       model->setStringList(tableList);
-                                                                       ui->cb_db_list->setModel(model);
-
-                                                                       resetMedianMap();
-                                                                       showItemsAfterProcessClicked();
-                                                                       showMedianMap();
-                                                                       enableInputWidgets();
-                                                                   }, Qt::QueuedConnection);
-                                                               });
+                               QString tableName = vizData->sqlData.tableColumnsMap.keys().last();
+                               int tableIndex = vizData->sqlData.dbTables.indexOf(tableName);
+                               QFile file(QDir(vizData->currentDirectory).filePath("MaSimViz_"+vizData->sqlData.tableColumnsMap.keys().last() + ".dat"));
+                               if(file.exists()){
+                                   loadStatsData(tableName);
+                               }
+                               else{
+                                   processAndSaveStatsData();
+                               }
                            }, Qt::QueuedConnection);
                        });
 }
@@ -470,7 +443,7 @@ void MainWindow::on_bt_run_clicked()
 
     // Define a lambda function to update the data in a separate thread
     QFuture<void> future = QtConcurrent::run([=]() {
-        for (int month = currentMonth; month < vizData->statsData[currentColIndexPlaying].median.size(); month++) {
+        for (int month = currentMonth; month < vizData->statsData[currentColNameShown].median.size(); month++) {
             // Check if the loop should be stopped
             if (stopLoop) {
                 currentMonth = month;
@@ -479,7 +452,7 @@ void MainWindow::on_bt_run_clicked()
 
             // Progress bar needs to be updated in the main thread
             QMetaObject::invokeMethod(this, [=]() {
-                ui->slider_progress->setValue(month * 100 / vizData->statsData[currentColIndexPlaying].median.size());
+                ui->slider_progress->setValue(month);
             }, Qt::QueuedConnection);
 
             // Sleep for 50 milliseconds to simulate processing time
@@ -493,10 +466,14 @@ void MainWindow::on_bt_run_clicked()
     // Connect the futureWatcher to a slot to handle when the background task finishes
     QObject::connect(futureWatcher, &QFutureWatcher<void>::finished, this, [=]() {
         // Reset the state when processing finishes
+        qDebug() << "Running finished!";
         if (!stopLoop)
         {
+            qDebug() << "Running finished !stopLoop !";
             resetPlayState();
         }
+        isRunning = false;
+        stopLoop = false;
     });
 }
 
@@ -546,13 +523,14 @@ void MainWindow::on_le_sim_path_returnPressed()
 
 void MainWindow::on_slider_progress_valueChanged(int value)
 {
-    currentMonth = value * vizData->statsData[currentColIndexPlaying].median.size() / 100;
-    if (currentMonth >= vizData->statsData[currentColIndexPlaying].median.size()) {
-        currentMonth = vizData->statsData[currentColIndexPlaying].median.size() - 1;
+    currentMonth = value + 1;
+    if (currentMonth >= vizData->monthCountStartToEnd) {
+        currentMonth = vizData->monthCountStartToEnd - 1;
     }
     showMedianMap();
     showChart();
     ui->statusbar->showMessage("Month: " + QString::number(currentMonth) + " Year: " + QString::number(currentMonth / 12));
+    // qDebug() << value << "Month:" << currentMonth;
 }
 
 
@@ -562,9 +540,11 @@ void MainWindow::on_slider_progress_sliderMoved(int position)
     stopLoop = true;
 }
 
-void MainWindow::on_cb_db_list_currentIndexChanged(int index)
+
+void MainWindow::on_cb_col_name_list_currentTextChanged(const QString &colName)
 {
-    currentColIndexPlaying = index;
+    qDebug() << "Column name changed to:" << colName;
+    currentColNameShown = colName;
     showMedianMap();
     showChart();
 }
@@ -591,7 +571,12 @@ void MainWindow::enableInputWidgets(){
 }
 
 void MainWindow::resetMedianMap(){
-    currentColIndexPlaying = 0;
+    if(vizData->statsData.isEmpty()){
+        currentColNameShown = "";
+    }
+    else{
+        currentColNameShown = vizData->statsData.keys().first();
+    }
     currentMonth = 0;
     currentLocationSelectedMap.clear();
     ui->graphicsView->resetGraphicsView();
@@ -599,27 +584,27 @@ void MainWindow::resetMedianMap(){
 }
 
 void MainWindow::showMedianMap(){
-    ui->wg_color_map->setColorMapMinMax(QPair<double,double>(vizData->statsData[currentColIndexPlaying].medianMin, vizData->statsData[currentColIndexPlaying].medianMax));
-    ui->graphicsView->updateRasterDataMedian(currentColIndexPlaying, currentMonth);
+    ui->wg_color_map->setColorMapMinMax(QPair<double,double>(vizData->statsData[currentColNameShown].medianMin, vizData->statsData[currentColNameShown].medianMax));
+    ui->graphicsView->updateRasterDataMedian(currentColNameShown, currentMonth);
     ui->graphicsView->update();
 }
 
 void MainWindow::showChart(){
     ui->gv_chartview->setHidden(currentLocationSelectedMap.isEmpty());
     if(ui->gv_chartview->isVisible()){
-        chart->plotDataMedianMultipleLocations(currentColIndexPlaying, currentLocationSelectedMap, currentMonth, ui->cb_db_list->currentText());
+        chart->plotDataMedianMultipleLocations(currentColNameShown, currentLocationSelectedMap, currentMonth, ui->cb_col_name_list->currentText());
     }
 }
 
 void MainWindow::hideMedianItems(){
     ui->slider_progress->setHidden(true);
-    ui->cb_db_list->setHidden(true);
+    ui->cb_col_name_list->setHidden(true);
     ui->gv_chartview->setHidden(true);
 }
 
 void MainWindow::showItemsAfterBrowseClicked(){
     ui->cb_raster_list->setHidden(false);
-    ui->cb_db_list->setHidden(ui->cb_raster_list->isVisible());
+    ui->cb_col_name_list->setHidden(ui->cb_raster_list->isVisible());
     ui->slider_progress->setHidden(true);
     ui->progress_bar->setHidden(ui->slider_progress->isVisible());
     ui->slider_progress->setValue(0);
@@ -630,11 +615,12 @@ void MainWindow::showItemsAfterBrowseClicked(){
 }
 
 void MainWindow::showItemsAfterProcessClicked(){
-    ui->cb_db_list->setHidden(false);
-    ui->cb_raster_list->setHidden(ui->cb_db_list->isVisible());
+    ui->cb_col_name_list->setHidden(false);
+    ui->cb_raster_list->setHidden(ui->cb_col_name_list->isVisible());
     ui->slider_progress->setHidden(false);
     ui->progress_bar->setHidden(ui->slider_progress->isVisible());
     ui->slider_progress->setValue(0);
+    ui->slider_progress->setMaximum(vizData->monthCountStartToEnd - 1);
     ui->progress_bar->setValue(0);
     isRunning = false;
     stopLoop = false;
@@ -663,7 +649,131 @@ void MainWindow::resetPlayState(){
     stopLoop = false;
     ui->bt_run->setText("Run");
     ui->progress_bar->setValue(0);
+    ui->slider_progress->setValue(0);
     ui->statusbar->showMessage("Playing complete.");
 }
 
+void MainWindow::saveStatsData(){
+    dataProcessor->saveStatsDataToCSV(vizData,
+                                      [this](int progress) {  // Progress callback
+                                          QMetaObject::invokeMethod(this, [this, progress]() {
+                                              ui->progress_bar->setValue(progress);  // Update the progress bar value
+                                              ui->statusbar->showMessage("Saving IQR data to CSV ... " + QString::number(progress) + "%");
+                                          }, Qt::QueuedConnection);
+                                      },
+                                      [this]() {  // Completion callback
+                                          QMetaObject::invokeMethod(this, [this]() {
+                                              qDebug() << "Saving IQR data to CSV complete!";
+                                              ui->statusbar->showMessage("Saving IQR data to CSV complete!");
 
+                                              QStringListModel *model = new QStringListModel(this);
+                                              QStringList columnList = vizData->statsData.keys();
+                                              model->setStringList(columnList);
+                                              ui->cb_col_name_list->setModel(model);
+
+                                              resetMedianMap();
+                                              showItemsAfterProcessClicked();
+                                              showMedianMap();
+                                              enableInputWidgets();
+                                          }, Qt::QueuedConnection);
+                                      });
+}
+
+void MainWindow::processAndSaveStatsData(){
+    dataProcessor->processStatsData(vizData,[this](int progress) {  // Progress callback
+                                                QMetaObject::invokeMethod(this, [this, progress]() {
+                                                    ui->progress_bar->setValue(progress);  // Update the progress bar value
+                                                    ui->statusbar->showMessage("Calculating IQR ... " + QString::number(progress) + "%");
+                                                }, Qt::QueuedConnection);
+                                            },
+                                            [this]() {  // Completion callback
+                                                QMetaObject::invokeMethod(this, [this]() {
+                                                    qDebug() << "Calculating IQR complete!";
+                                                    ui->statusbar->showMessage("Calculating IQR complete!");
+
+                                                    for(QString colName : vizData->statsData.keys()){                                                        
+                                                        qDebug() << "[Save]" << colName << vizData->statsData[colName].median.size() << "x" << vizData->statsData[colName].median[0].size();
+                                                        qDebug() << "[Save]Month 150 5 loc 150: " << vizData->statsData[colName].iqr5[150][150];
+                                                        qDebug() << "[Save]Month 150 25 loc 150: " << vizData->statsData[colName].iqr25[150][150];
+                                                        qDebug() << "[Save]Month 150 Median loc 150: " << vizData->statsData[colName].median[150][150];
+                                                        qDebug() << "[Save]Month 150 75 loc 150: " << vizData->statsData[colName].iqr75[150][150];
+                                                        qDebug() << "[Save]Month 150 95 loc 150: " << vizData->statsData[colName].iqr95[150][150];
+                                                        qDebug() << "[Save]Month 150 min loc 150: " << vizData->statsData[colName].medianMin;
+                                                        qDebug() << "[Save]Month 150 max loc 150: " << vizData->statsData[colName].medianMax;
+                                                    }
+                                                    saveStatsData();
+                                        }, Qt::QueuedConnection);
+                                    });
+}
+
+void MainWindow::loadStatsData(QString tableName){
+    dataProcessor->loadStatsDataFromCSV(tableName, vizData,
+                                        [this](int progress) {  // Progress callback
+                                            QMetaObject::invokeMethod(this, [this, progress]() {
+                                                ui->progress_bar->setValue(progress);  // Update the progress bar value
+                                                ui->statusbar->showMessage("Loading IQR data from CSV ... " + QString::number(progress) + "%");
+                                            }, Qt::QueuedConnection);
+                                        },
+                                        [this](int readCode) {  // Completion callback
+                                            QMetaObject::invokeMethod(this, [this, readCode]() {
+                                                qDebug() << "Loading IQR data from CSV complete!";
+                                                ui->statusbar->showMessage("Loading IQR data from CSV complete!");
+
+                                                switch (readCode) {
+                                                case 0:{
+                                                    qDebug() << "File loaded successfully!";
+                                                    break;
+                                                }
+                                                case 1:
+                                                    QMessageBox::information(this, "Information", "Unable to open file for reading");
+                                                    break;
+                                                case 2:
+                                                    QMessageBox::information(this, "Information", "Column number does not match");
+                                                    break;
+                                                case 3:
+                                                    QMessageBox::information(this, "Information", "Header size does not match config location and columns");
+                                                    break;
+                                                case 4:
+                                                    QMessageBox::information(this, "Information", "Column names do not match selected columns");
+                                                    break;
+                                                }
+                                                if(readCode == 0){
+                                                    QStringListModel *model = new QStringListModel(this);
+                                                    QStringList columnList = vizData->statsData.keys();
+                                                    model->setStringList(columnList);
+                                                    ui->cb_col_name_list->setModel(model);
+
+                                                    for(QString colName : vizData->statsData.keys()){
+                                                        qDebug() << "[Load]" << colName << vizData->statsData[colName].median.size() << "x" << vizData->statsData[colName].median[0].size();
+                                                        qDebug() << "[Load]Month 150 5 loc 150: " << vizData->statsData[colName].iqr5[150][150];
+                                                        qDebug() << "[Load]Month 150 25 loc 150: " << vizData->statsData[colName].iqr25[150][150];
+                                                        qDebug() << "[Load]Month 150 Median loc 150: " << vizData->statsData[colName].median[150][150];
+                                                        qDebug() << "[Load]Month 150 75 loc 150: " << vizData->statsData[colName].iqr75[150][150];
+                                                        qDebug() << "[Load]Month 150 95 loc 150: " << vizData->statsData[colName].iqr95[150][150];
+                                                        qDebug() << "[Load]Month 150 min loc 150: " << vizData->statsData[colName].medianMin;
+                                                        qDebug() << "[Load]Month 150 max loc 150: " << vizData->statsData[colName].medianMax;
+                                                    }
+
+                                                    resetMedianMap();
+                                                    showItemsAfterProcessClicked();
+                                                    showMedianMap();
+                                                    enableInputWidgets();
+                                                }
+                                                else {
+                                                    //Create a dialog and ask if user want to generate new stats
+                                                    QMessageBox msgBox;
+                                                    msgBox.setText("Do you want to generate new data?");
+                                                    msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+                                                    msgBox.setDefaultButton(QMessageBox::No);
+                                                    int ret = msgBox.exec();
+                                                    if(ret == QMessageBox::Yes){
+                                                        processAndSaveStatsData();
+                                                    }
+                                                    else{
+                                                        enableInputWidgets();
+                                                    }
+                                                    return;
+                                                }
+                                            }, Qt::QueuedConnection);
+                                        });
+}

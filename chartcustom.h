@@ -28,7 +28,7 @@ public:
     void setChartView(QChartView* chartView);
     void setVizData(VizData *vizData);
 public slots:
-    void plotDataMedianMultipleLocations(int colIndex, QMap<int,QColor> locInfo, int currentMonth, QString title);
+    void plotDataMedianMultipleLocations(QString colName, QMap<int,QColor> locInfo, int currentMonth, QString title);
 signals:
     void valueAtVerticalLineChanged(double value);
 };

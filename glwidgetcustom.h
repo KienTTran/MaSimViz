@@ -82,7 +82,7 @@ public:
 public:
     void updateInstanceData();
     void updateInstanceDataAll();
-    void updateInstanceDataMedian(int dataIndex, int month);
+    void updateInstanceDataMedian(QString colName, int month);
     void setupVertexBuffers();
     Q_INVOKABLE void updateVertexData();
     Q_INVOKABLE void updateVertexBuffers();

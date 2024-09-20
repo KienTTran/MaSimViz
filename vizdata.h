@@ -38,7 +38,7 @@ public:
         QMap<int,QMap<int,QString>> dbColumns;
         QString locationID = "locationid";
         QString monthID = "monthlydataid";
-        QMap<QString,QString> tableColumnMap;
+        QMap<QString,QString> tableColumnsMap;
     };
 
 
@@ -76,6 +76,7 @@ public:
     };
 
     VizData();
+    QString currentDirectory;
     RasterData *rasterData;
     RasterData *rasterDataAll;
     QDateTime simStartDate;
@@ -83,7 +84,7 @@ public:
     QDateTime simEndDate;
     int monthCountStartToEnd;
     int monthCountCompToEnd;
-    QList<StatsData> statsData;
+    QMap<QString,StatsData> statsData;
     SQLData sqlData;
 };
 

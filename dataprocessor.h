@@ -15,6 +15,8 @@ public:
 
 public:
     void processStatsData(VizData* vizData, std::function<void(int)> progressCallback, std::function<void()> completionCallback);
+    void saveStatsDataToCSV(VizData* vizData, std::function<void(int)> progressCallback, std::function<void()> completionCallback);
+    void loadStatsDataFromCSV(const QString& tableName, VizData *vizData, std::function<void(int)> progressCallback, std::function<void(int)> completionCallback);
 };
 
 #endif // DATAPROCESSOR_H

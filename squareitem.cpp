@@ -20,7 +20,7 @@ void SquareItem::setSelection(bool selected){
     isSelected = selected;
     if(isSelected){
         selectedColor = QColor::fromRgb(QRandomGenerator::global()->generate());
-        setPen(QPen(selectedColor, 5.0));
+        setPen(QPen(selectedColor, 10.0));
     }
     else{
         selectedColor = Qt::black;

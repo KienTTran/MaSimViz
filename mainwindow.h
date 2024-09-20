@@ -54,9 +54,9 @@ private slots:
 
     void on_slider_progress_sliderMoved(int position);
 
-    void on_cb_db_list_currentIndexChanged(int index);
-
     void onMouseMoved(const QPoint &pos);
+
+    void on_cb_col_name_list_currentTextChanged(const QString &arg1);
 
 public slots:
     void onSquareClicked(const QPoint &pos, const QColor &color);
@@ -86,6 +86,9 @@ private:
     void showItemsAfterPauseClicked();
     void resetPlayState();
     void showChart();
+    void saveStatsData();
+    void processAndSaveStatsData();
+    void loadStatsData(QString tableName);
 
 private:
     bool all_rasters_exist = false;
@@ -93,7 +96,7 @@ private:
     std::atomic<bool> stopLoop;  // Global or class member to stop the loop
     bool isRunning = false;             // Global or class member to track play/pause state
     int currentMonth = 0;
-    int currentColIndexPlaying = 0;
+    QString currentColNameShown = "";
     QMap<int,QColor> currentLocationSelectedMap;
 
     bool inspectMode = false;

@@ -20,9 +20,9 @@ void ChartCustom::setChartView(QChartView *chartView){
     this->chartView = chartView;
 }
 
-void ChartCustom::plotDataMedianMultipleLocations(int colIndex, QMap<int,QColor> locInfo, int currentMonth, QString title) {
+void ChartCustom::plotDataMedianMultipleLocations(QString colName, QMap<int,QColor> locInfo, int currentMonth, QString title) {
     // Check if the median data is available
-    if (vizData->statsData[colIndex].median.isEmpty()) {
+    if (vizData->statsData[colName].median.isEmpty()) {
         return;
     }
 
@@ -35,9 +35,9 @@ void ChartCustom::plotDataMedianMultipleLocations(int colIndex, QMap<int,QColor>
 
     // Create a QValueAxis for the X axis (month) and Y axis (median values)
     QCategoryAxis *axisX = new QCategoryAxis;
-    axisX->setRange(0, vizData->statsData[colIndex].median.size() - 1);  // Set the range for the months
+    axisX->setRange(0, vizData->statsData[colName].median.size() - 1);  // Set the range for the months
 
-    for (int i = 0; i < vizData->statsData[colIndex].median.size(); i += 12) {
+    for (int i = 0; i < vizData->statsData[colName].median.size(); i += 12) {
         axisX->append(QString("Year %1").arg(i / 12), i);  // Append "Year X" label at every 12th month
     }
 
@@ -77,10 +77,10 @@ void ChartCustom::plotDataMedianMultipleLocations(int colIndex, QMap<int,QColor>
         QLineSeries* iqr75Series = new QLineSeries();
 
         // Populate the series with the median, iqr25, and iqr75 data
-        for (int month = 0; month < vizData->statsData[colIndex].median.size(); month++) {
-            qreal medianValue = vizData->statsData[colIndex].median[month][locIndex];
-            qreal iqr25Value = vizData->statsData[colIndex].iqr25[month][locIndex];
-            qreal iqr75Value = vizData->statsData[colIndex].iqr75[month][locIndex];
+        for (int month = 0; month < vizData->statsData[colName].median.size(); month++) {
+            qreal medianValue = vizData->statsData[colName].median[month][locIndex];
+            qreal iqr25Value = vizData->statsData[colName].iqr25[month][locIndex];
+            qreal iqr75Value = vizData->statsData[colName].iqr75[month][locIndex];
 
             // Append the values to their respective series
             medianSeries->append(month, medianValue);
@@ -120,9 +120,9 @@ void ChartCustom::plotDataMedianMultipleLocations(int colIndex, QMap<int,QColor>
             marker->setVisible(false);  // Hide the area series legend marker
         }
 
-        medianSeries->setName(QString("%1(%2 - %3)").arg(QString::number(vizData->statsData[colIndex].median[currentMonth][locIndex],'f',2),
-                                                         QString::number(vizData->statsData[colIndex].iqr25[currentMonth][locIndex],'f',2),
-                                                         QString::number(vizData->statsData[colIndex].iqr75[currentMonth][locIndex],'f',2)));
+        medianSeries->setName(QString("%1(%2 - %3)").arg(QString::number(vizData->statsData[colName].median[currentMonth][locIndex],'f',2),
+                                                         QString::number(vizData->statsData[colName].iqr25[currentMonth][locIndex],'f',2),
+                                                         QString::number(vizData->statsData[colName].iqr75[currentMonth][locIndex],'f',2)));
     }
 
     // Set the Y-axis range to include all data points
@@ -134,7 +134,7 @@ void ChartCustom::plotDataMedianMultipleLocations(int colIndex, QMap<int,QColor>
 
     if(locInfo.size() > 0){
         // Ensure the current month is within the valid range
-        if (currentMonth < 0 || currentMonth >= vizData->statsData[colIndex].median.size()) {
+        if (currentMonth < 0 || currentMonth >= vizData->statsData[colName].median.size()) {
             return;
         }
 
@@ -174,6 +174,7 @@ void ChartCustom::plotDataMedianMultipleLocations(int colIndex, QMap<int,QColor>
     chart->scene()->addItem(verticalLine);
     chart->update();
 }
+
 
 
 
