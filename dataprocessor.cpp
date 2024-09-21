@@ -338,16 +338,6 @@ int readFromCSVWorker(const QString& tableName, VizData *vizData,std::function<v
         vizData->statsData[col].iqr95 = QList<QList<double>>(vizData->monthCountStartToEnd, QList<double>(vizData->rasterData->nLocations,0.0));
     }
 
-    // for(int month = 0; month < 6; month++){
-    //     QStringList line = in.readLine().split(",");
-    //     for(int colNameIndex = 0; colNameIndex < colNames.size(); colNameIndex++){
-    //         for (int loc = 0; loc < 3; loc++) {
-    //             int index = colNameIndex*vizData->rasterData->nLocations + loc*5;
-    //             qDebug() << "month:" << month << colNames[colNameIndex] << "loc:" << loc << "index:" << index;
-    //         }
-    //     }
-    // }
-
     int month = 0;
     while(!in.atEnd()){
         QString readLine = in.readLine();
@@ -394,21 +384,6 @@ int readFromCSVWorker(const QString& tableName, VizData *vizData,std::function<v
             progressCallback((month*100)/vizData->monthCountStartToEnd);
         month++;
     }
-
-    // for(int month = 0; month < vizData->monthCountStartToEnd; month++){
-    //     QStringList line = in.readLine().split(",");
-    //     for(int colNameIndex = 0; colNameIndex < colNames.size(); colNameIndex++){
-    //         for (int loc = 0; loc < vizData->rasterData->nLocations; loc++) {
-    //             int index = colNameIndex*vizData->rasterData->nLocations + loc*5;
-    //             // qDebug() << "month:" << month << colNames[colNameIndex] << "loc:" << loc << "index:" << index;
-    //             vizData->statsData[colNames[colNameIndex]].median[month][loc] = line[index].toDouble();
-    //             vizData->statsData[colNames[colNameIndex]].iqr5[month][loc] = line[index + 1].toDouble();
-    //             vizData->statsData[colNames[colNameIndex]].iqr25[month][loc] = line[index + 2].toDouble();
-    //             vizData->statsData[colNames[colNameIndex]].iqr75[month][loc] = line[index+ 3].toDouble();
-    //             vizData->statsData[colNames[colNameIndex]].iqr95[month][loc] = line[index+ 4].toDouble();
-    //         }
-    //     }
-    // }
 
     file.close();
     return 0;
