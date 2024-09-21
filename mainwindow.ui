@@ -64,7 +64,7 @@
            </layout>
           </item>
           <item row="1" column="0">
-           <layout class="QGridLayout" name="gridLayout_4" rowstretch="2,0,0">
+           <layout class="QGridLayout" name="gridLayout_4" rowstretch="2,2,0">
             <item row="1" column="0">
              <layout class="QHBoxLayout" name="horizontalLayout_8" stretch="3,0">
               <item>

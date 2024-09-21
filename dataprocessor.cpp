@@ -52,10 +52,8 @@ void processStatsDataWorker(VizData* vizData, std::function<void(int)> progressC
     QVector<QFuture<void>> futures; // Store futures to wait for all threads to finish
 
     // Iterate over each statData
-    for (QString colName : vizData->statsData.keys()) {
-        VizData::StatsData& stats = vizData->statsData[colName];
-
-        int totalTasks = vizData->statsData.size() * nMonths * nLocations * stats.iqrRanges.size(); // 5 threads for each statData element (IQRs + median)
+    for (int colNameIndex = 0; colNameIndex < vizData->statsData.keys().size(); colNameIndex++) {
+        VizData::StatsData& stats = vizData->statsData[vizData->statsData.keys()[colNameIndex]];
 
         // Initialize the dimensions for median, IQR, min, and max
         stats.iqr = QList<QList<QList<double>>>(stats.iqrRanges.size(), QList<QList<double>>(nMonths, QList<double>(nLocations, 0.0)));
@@ -67,23 +65,18 @@ void processStatsDataWorker(VizData* vizData, std::function<void(int)> progressC
 
         // Process each month and each location
         for (int month = 0; month < nMonths; ++month) {
-
             for (int loc = 0; loc < nLocations; ++loc) {
                 QList<double> values;
                 for (int db = 0; db < nDatabases; ++db) {
                     values.append(stats.data[db][loc][month]);
                 }
 
+                if (progressCallback) {
+                    progressCallback(1);  // Report percentage progress, normalized to 0-100
+                }
                 for(int i = 0; i < stats.iqrRanges.size(); i++){
                     // futures.append(QtConcurrent::run(calculatePercentiles, std::ref(stats), values, month, loc, stats.iqrRanges[i], std::ref(stats.iqr[i])));
-                    calculatePercentiles(stats, values, month, loc, 50, stats.iqr[i]);
-                }
-
-                // Increment progress and call the progress callback
-                progress += stats.iqrRanges.size();  // Increment by 5 because we launched 5 tasks
-                if (progressCallback) {
-                    int percentProgress = (progress * 100) / totalTasks;
-                    progressCallback(percentProgress);  // Report percentage progress, normalized to 0-100
+                    calculatePercentiles(stats, values, month, loc, stats.iqrRanges[i], stats.iqr[i]);
                 }
 
                 // Update global min/max values from data
@@ -110,6 +103,10 @@ void processStatsDataWorker(VizData* vizData, std::function<void(int)> progressC
         stats.dataMax = globalMax;
         stats.medianMin = globalMedianMin;
         stats.medianMax = globalMedianMax;
+
+        if (progressCallback) {
+            progressCallback((colNameIndex * 100) / vizData->statsData.keys().size());  // Report percentage progress, normalized to 0-100
+        }
     }
 }
 

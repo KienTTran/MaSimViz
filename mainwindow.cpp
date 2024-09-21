@@ -50,7 +50,8 @@ MainWindow::MainWindow(QWidget *parent)
     vizData = new VizData();
     ui->graphicsView->setVizData(vizData);
 
-    ui->le_sim_path->setText("Input simulation path then [Enter] or using [Browse] button");
+    ui->le_sim_path->setText("");
+    ui->le_sim_path->setPlaceholderText("Input simulation path then [Enter] or using [Browse] button");
     stopLoop = false;
 
     chart = new ChartCustom(this);
