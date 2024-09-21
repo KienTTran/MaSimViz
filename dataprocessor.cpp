@@ -47,7 +47,6 @@ void processStatsDataWorker(VizData* vizData, std::function<void(int)> progressC
     int nDatabases = vizData->statsData[vizData->statsData.keys()[0]].data.size();  // Number of databases
     int nLocations = vizData->rasterData->nLocations; // Number of locations
     int nMonths = vizData->monthCountStartToEnd;  // Number of months
-    int totalTasks = vizData->statsData.size() * nMonths * nLocations * 5; // 5 threads for each statData element (IQRs + median)
     int progress = 0;
 
     QVector<QFuture<void>> futures; // Store futures to wait for all threads to finish
@@ -56,12 +55,10 @@ void processStatsDataWorker(VizData* vizData, std::function<void(int)> progressC
     for (QString colName : vizData->statsData.keys()) {
         VizData::StatsData& stats = vizData->statsData[colName];
 
+        int totalTasks = vizData->statsData.size() * nMonths * nLocations * stats.iqrRanges.size(); // 5 threads for each statData element (IQRs + median)
+
         // Initialize the dimensions for median, IQR, min, and max
-        stats.median.resize(nMonths);
-        stats.iqr5.resize(nMonths);
-        stats.iqr25.resize(nMonths);
-        stats.iqr75.resize(nMonths);
-        stats.iqr95.resize(nMonths);
+        stats.iqr = QList<QList<QList<double>>>(stats.iqrRanges.size(), QList<QList<double>>(nMonths, QList<double>(nLocations, 0.0)));
 
         double globalMin = std::numeric_limits<double>::max();
         double globalMax = std::numeric_limits<double>::lowest();
@@ -70,11 +67,6 @@ void processStatsDataWorker(VizData* vizData, std::function<void(int)> progressC
 
         // Process each month and each location
         for (int month = 0; month < nMonths; ++month) {
-            stats.median[month].resize(nLocations);
-            stats.iqr5[month].resize(nLocations);
-            stats.iqr25[month].resize(nLocations);
-            stats.iqr75[month].resize(nLocations);
-            stats.iqr95[month].resize(nLocations);
 
             for (int loc = 0; loc < nLocations; ++loc) {
                 QList<double> values;
@@ -82,15 +74,13 @@ void processStatsDataWorker(VizData* vizData, std::function<void(int)> progressC
                     values.append(stats.data[db][loc][month]);
                 }
 
-                // Run percentile calculations for all IQRs and median in parallel using 5 threads
-                futures.append(QtConcurrent::run(calculatePercentiles, std::ref(stats), values, month, loc, 50, std::ref(stats.median)));
-                futures.append(QtConcurrent::run(calculatePercentiles, std::ref(stats), values, month, loc, 5, std::ref(stats.iqr5)));
-                futures.append(QtConcurrent::run(calculatePercentiles, std::ref(stats), values, month, loc, 25, std::ref(stats.iqr25)));
-                futures.append(QtConcurrent::run(calculatePercentiles, std::ref(stats), values, month, loc, 75, std::ref(stats.iqr75)));
-                futures.append(QtConcurrent::run(calculatePercentiles, std::ref(stats), values, month, loc, 95, std::ref(stats.iqr95)));
+                for(int i = 0; i < stats.iqrRanges.size(); i++){
+                    // futures.append(QtConcurrent::run(calculatePercentiles, std::ref(stats), values, month, loc, stats.iqrRanges[i], std::ref(stats.iqr[i])));
+                    calculatePercentiles(stats, values, month, loc, 50, stats.iqr[i]);
+                }
 
                 // Increment progress and call the progress callback
-                progress += 5;  // Increment by 5 because we launched 5 tasks
+                progress += stats.iqrRanges.size();  // Increment by 5 because we launched 5 tasks
                 if (progressCallback) {
                     int percentProgress = (progress * 100) / totalTasks;
                     progressCallback(percentProgress);  // Report percentage progress, normalized to 0-100
@@ -111,7 +101,7 @@ void processStatsDataWorker(VizData* vizData, std::function<void(int)> progressC
         // After all percentile calculations are done, update the global median min/max values
         for (int month = 0; month < nMonths; ++month) {
             for (int loc = 0; loc < nLocations; ++loc) {
-                updateGlobalMinMax(stats.median[month][loc], globalMedianMin, globalMedianMax);
+                updateGlobalMinMax(stats.iqr[0][month][loc], globalMedianMin, globalMedianMax);
             }
         }
 
@@ -215,30 +205,16 @@ void saveToCSVWorker(VizData *vizData,std::function<void(int)> progressCallback)
             for (int loc = 0; loc < vizData->rasterData->nLocations; loc++) {
                 for(int i = 0; i < 5; i++){
                     int index = colNameIndex * vizData->rasterData->nLocations * 5 + loc * 5 + i;
-                    if(i == 0){
-                        writeString += QString::number(vizData->statsData[colNamesSorted[colNameIndex]].median[month][loc]) +",";
-                    }
-                    if(i == 1){
-                        writeString += QString::number(vizData->statsData[colNamesSorted[colNameIndex]].iqr25[month][loc]) + ",";
-                    }
-                    if(i == 2){
-                        writeString += QString::number(vizData->statsData[colNamesSorted[colNameIndex]].iqr75[month][loc]) + ",";
-                    }
-                    if(i == 3){
-                        writeString += QString::number(vizData->statsData[colNamesSorted[colNameIndex]].iqr5[month][loc]) + ",";
-                    }
-                    if(i == 4){
-                        writeString += QString::number(vizData->statsData[colNamesSorted[colNameIndex]].iqr95[month][loc]) + ",";
-                    }
+                    writeString += QString::number(vizData->statsData[colNamesSorted[colNameIndex]].iqr[i][month][loc]) +",";
                     if((month == 0 || month == 1) && i == 0){
                         if(count == vizData->rasterData->nLocations-1){
-                            qDebug() << "[Save]Last:" << count << month << colNamesSorted[colNameIndex] << loc << index << vizData->statsData[colNamesSorted[colNameIndex]].iqr95[month][loc];
+                            qDebug() << "[Save]Last:" << count << month << colNamesSorted[colNameIndex] << loc << index << vizData->statsData[colNamesSorted[colNameIndex]].iqr[4][month][loc];
                         }
                         if(count == vizData->rasterData->nLocations*2-1){
-                            qDebug() << "[Save]Last:" << count << month << colNamesSorted[colNameIndex] << loc << index << vizData->statsData[colNamesSorted[colNameIndex]].iqr95[month][loc];
+                            qDebug() << "[Save]Last:" << count << month << colNamesSorted[colNameIndex] << loc << index << vizData->statsData[colNamesSorted[colNameIndex]].iqr[4][month][loc];
                         }
                         if(count == vizData->rasterData->nLocations*3-1){
-                            qDebug() << "[Save]Last:" << count << month << colNamesSorted[colNameIndex] << loc << index << vizData->statsData[colNamesSorted[colNameIndex]].iqr95[month][loc];
+                            qDebug() << "[Save]Last:" << count << month << colNamesSorted[colNameIndex] << loc << index << vizData->statsData[colNamesSorted[colNameIndex]].iqr[4][month][loc];
                         }
                     }
                 }
@@ -304,10 +280,6 @@ int readFromCSVWorker(const QString& tableName, VizData *vizData,std::function<v
 
     vizData->sqlData.tableColumnsMap[tableName] = colNames.join(",").chopped(1);
 
-    // for(int i = 0; i < 10; i++){
-    //     qDebug() << "Header:" << header;
-    // }
-
     if(colNames.size() != vizData->statsData.size()){
         qWarning("Column number does not match.");
         return 2;
@@ -327,26 +299,13 @@ int readFromCSVWorker(const QString& tableName, VizData *vizData,std::function<v
         }
     }
 
+
     // Clear the existing data
     for(const QString col : colNames){
         vizData->statsData[col].medianMin = statsMin[colNames.indexOf(col)].toDouble();
         vizData->statsData[col].medianMax = statsMax[colNames.indexOf(col)].toDouble();
-        vizData->statsData[col].median = QList<QList<double>>(vizData->monthCountStartToEnd, QList<double>(vizData->rasterData->nLocations,0.0));
-        vizData->statsData[col].iqr5 = QList<QList<double>>(vizData->monthCountStartToEnd, QList<double>(vizData->rasterData->nLocations,0.0));
-        vizData->statsData[col].iqr25 = QList<QList<double>>(vizData->monthCountStartToEnd, QList<double>(vizData->rasterData->nLocations,0.0));
-        vizData->statsData[col].iqr75 = QList<QList<double>>(vizData->monthCountStartToEnd, QList<double>(vizData->rasterData->nLocations,0.0));
-        vizData->statsData[col].iqr95 = QList<QList<double>>(vizData->monthCountStartToEnd, QList<double>(vizData->rasterData->nLocations,0.0));
+        vizData->statsData[col].iqr = QList<QList<QList<double>>>(vizData->statsData[col].iqrRanges.size(), QList<QList<double>>(vizData->monthCountStartToEnd, QList<double>(vizData->rasterData->nLocations, 0.0)));
     }
-
-    // for(int month = 0; month < 6; month++){
-    //     QStringList line = in.readLine().split(",");
-    //     for(int colNameIndex = 0; colNameIndex < colNames.size(); colNameIndex++){
-    //         for (int loc = 0; loc < 3; loc++) {
-    //             int index = colNameIndex*vizData->rasterData->nLocations + loc*5;
-    //             qDebug() << "month:" << month << colNames[colNameIndex] << "loc:" << loc << "index:" << index;
-    //         }
-    //     }
-    // }
 
     int month = 0;
     while(!in.atEnd()){
@@ -356,24 +315,11 @@ int readFromCSVWorker(const QString& tableName, VizData *vizData,std::function<v
         int count = 0;
         for(int colNameIndex = 0; colNameIndex < colNames.size(); colNameIndex++){
             for (int loc = 0; loc < vizData->rasterData->nLocations; loc++) {
-                for(int i = 0; i < 5; i++){
-                    int index = colNameIndex * vizData->rasterData->nLocations * 5 + loc * 5 + i;
+                int iqrSize =  vizData->statsData[colNames[colNameIndex]].iqrRanges.size();
+                for(int i = 0; i < iqrSize; i++){
+                    int index = colNameIndex * vizData->rasterData->nLocations *  iqrSize + loc *  iqrSize + i;
                     // qDebug() << "month:" << month << colNames[colNameIndex] << "loc:" << loc << "index:" << index;
-                    if(i == 0){
-                        vizData->statsData[colNames[colNameIndex]].median[month][loc] = line[index].toDouble();
-                    }
-                    if(i == 1){
-                        vizData->statsData[colNames[colNameIndex]].iqr25[month][loc] = line[index].toDouble();
-                    }
-                    if(i == 2){
-                        vizData->statsData[colNames[colNameIndex]].iqr75[month][loc] = line[index].toDouble();
-                    }
-                    if(i == 3){
-                        vizData->statsData[colNames[colNameIndex]].iqr5[month][loc] = line[index].toDouble();
-                    }
-                    if(i == 4){
-                        vizData->statsData[colNames[colNameIndex]].iqr95[month][loc] = line[index].toDouble();
-                    }
+                    vizData->statsData[colNames[colNameIndex]].iqr[i][month][loc] = line[index].toDouble();
                     if((month == 0 || month == 1) && i == 0){
                         if(count == vizData->rasterData->nLocations-1){
                             qDebug() << "[Load]Last:" << count << month << colNames[colNameIndex] << loc << index << line[index].toDouble();
@@ -394,21 +340,6 @@ int readFromCSVWorker(const QString& tableName, VizData *vizData,std::function<v
             progressCallback((month*100)/vizData->monthCountStartToEnd);
         month++;
     }
-
-    // for(int month = 0; month < vizData->monthCountStartToEnd; month++){
-    //     QStringList line = in.readLine().split(",");
-    //     for(int colNameIndex = 0; colNameIndex < colNames.size(); colNameIndex++){
-    //         for (int loc = 0; loc < vizData->rasterData->nLocations; loc++) {
-    //             int index = colNameIndex*vizData->rasterData->nLocations + loc*5;
-    //             // qDebug() << "month:" << month << colNames[colNameIndex] << "loc:" << loc << "index:" << index;
-    //             vizData->statsData[colNames[colNameIndex]].median[month][loc] = line[index].toDouble();
-    //             vizData->statsData[colNames[colNameIndex]].iqr5[month][loc] = line[index + 1].toDouble();
-    //             vizData->statsData[colNames[colNameIndex]].iqr25[month][loc] = line[index + 2].toDouble();
-    //             vizData->statsData[colNames[colNameIndex]].iqr75[month][loc] = line[index+ 3].toDouble();
-    //             vizData->statsData[colNames[colNameIndex]].iqr95[month][loc] = line[index+ 4].toDouble();
-    //         }
-    //     }
-    // }
 
     file.close();
     return 0;

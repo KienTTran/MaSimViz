@@ -569,8 +569,8 @@ void GLWidgetCustom::updateInstanceDataMedian(QString colName, int month)
     double maxValue = vizData->statsData[colName].medianMax;
 
     // Loop through rasterData to get valid positions and set colors based on value
-    for (int loc = 0; loc < vizData->statsData[colName].median[month].size(); ++loc) {
-        double value = vizData->statsData[colName].median[month][loc];
+    for (int loc = 0; loc < vizData->statsData[colName].iqr[0][month].size(); ++loc) {
+        double value = vizData->statsData[colName].iqr[0][month][loc];
 
         // Ensure value is within the valid range
         if (value < minValue) {

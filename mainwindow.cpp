@@ -50,7 +50,7 @@ MainWindow::MainWindow(QWidget *parent)
     vizData = new VizData();
     ui->graphicsView->setVizData(vizData);
 
-    ui->le_sim_path->setText("/Users/ktt/Downloads/0ATest_input");
+    ui->le_sim_path->setText("Input simulation path then [Enter] or using [Browse] button");
     stopLoop = false;
 
     chart = new ChartCustom(this);
@@ -323,15 +323,14 @@ void MainWindow::on_bt_auto_load_folder_clicked()
     defaultDir = "/";  // Fallback to root if OS is unknown
 #endif
 
-    // Open a file dialog to select a folder
-    // QString selectedDirectory = QFileDialog::getExistingDirectory(
-    //     nullptr,                               // Parent widget (null for no parent)
-    //     "Select Folder",                       // Dialog title
-    //     defaultDir,                               // Default directory (you can set your default path)
-    //     QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks  // Show only directories
-    //     );
+    QString selectedDirectory = QFileDialog::getExistingDirectory(
+        nullptr,                               // Parent widget (null for no parent)
+        "Select Folder",                       // Dialog title
+        defaultDir,                               // Default directory (you can set your default path)
+        QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks  // Show only directories
+        );
 
-    QString selectedDirectory = "/Users/ktt/Downloads/0ATest_input";
+    // QString selectedDirectory = "/Users/ktt/Downloads/0ATest_input";
 
     if (!selectedDirectory.isEmpty()) {
         qDebug() << "Selected folder:" << selectedDirectory;
@@ -414,11 +413,11 @@ void MainWindow::on_bt_process_clicked()
                                qDebug() << "Loading complete!";
                                ui->statusbar->showMessage("Loading database complete!");
 
-                               for(QString colName : vizData->statsData.keys()){
-                                   for (int j = 0; j < vizData->statsData[colName].data.size(); j++) {
-                                       qDebug() << "Data:" << colName << "j:" << vizData->statsData[colName].data[j][150][150];
-                                   }
-                               }
+                               // for(QString colName : vizData->statsData.keys()){
+                               //     for (int j = 0; j < vizData->statsData[colName].data.size(); j++) {
+                               //         qDebug() << "Data:" << colName << "j:" << vizData->statsData[colName].data[j][150][150];
+                               //     }
+                               // }
 
                                QString tableName = vizData->sqlData.tableColumnsMap.keys().last();
                                int tableIndex = vizData->sqlData.dbTables.indexOf(tableName);
@@ -443,7 +442,7 @@ void MainWindow::on_bt_run_clicked()
 
     // Define a lambda function to update the data in a separate thread
     QFuture<void> future = QtConcurrent::run([=]() {
-        for (int month = currentMonth; month < vizData->statsData[currentColNameShown].median.size(); month++) {
+        for (int month = currentMonth; month < vizData->statsData[currentColNameShown].iqr[0].size(); month++) {
             // Check if the loop should be stopped
             if (stopLoop) {
                 currentMonth = month;
@@ -553,6 +552,7 @@ void MainWindow::disabeInputWidgets(){
     ui->le_sim_path->setEnabled(false);
     ui->bt_process->setEnabled(false);
     ui->cb_raster_list->setEnabled(false);
+    ui->cb_col_name_list->setEnabled(false);
     ui->bt_auto_load_folder->setEnabled(false);
     ui->bt_run->setEnabled(false);
     ui->graphicsView->setEnabled(false);
@@ -563,6 +563,7 @@ void MainWindow::enableInputWidgets(){
     ui->le_sim_path->setEnabled(true);
     ui->bt_process->setEnabled(true);
     ui->cb_raster_list->setEnabled(true);
+    ui->cb_col_name_list->setEnabled(true);
     ui->bt_auto_load_folder->setEnabled(true);
     ui->progress_bar->setValue(0);
     ui->bt_run->setEnabled(true);
@@ -691,16 +692,16 @@ void MainWindow::processAndSaveStatsData(){
                                                     qDebug() << "Calculating IQR complete!";
                                                     ui->statusbar->showMessage("Calculating IQR complete!");
 
-                                                    for(QString colName : vizData->statsData.keys()){                                                        
-                                                        qDebug() << "[Save]" << colName << vizData->statsData[colName].median.size() << "x" << vizData->statsData[colName].median[0].size();
-                                                        qDebug() << "[Save]Month 150 5 loc 150: " << vizData->statsData[colName].iqr5[150][150];
-                                                        qDebug() << "[Save]Month 150 25 loc 150: " << vizData->statsData[colName].iqr25[150][150];
-                                                        qDebug() << "[Save]Month 150 Median loc 150: " << vizData->statsData[colName].median[150][150];
-                                                        qDebug() << "[Save]Month 150 75 loc 150: " << vizData->statsData[colName].iqr75[150][150];
-                                                        qDebug() << "[Save]Month 150 95 loc 150: " << vizData->statsData[colName].iqr95[150][150];
-                                                        qDebug() << "[Save]Month 150 min loc 150: " << vizData->statsData[colName].medianMin;
-                                                        qDebug() << "[Save]Month 150 max loc 150: " << vizData->statsData[colName].medianMax;
-                                                    }
+                                                    // for(QString colName : vizData->statsData.keys()){
+                                                    //     qDebug() << "[Save]" << colName << vizData->statsData[colName].iqr[0].size() << "x" << vizData->statsData[colName].iqr[0][0].size();
+                                                    //     qDebug() << "[Save]Month 150 5 loc 150: " << vizData->statsData[colName].iqr[1][150][150];
+                                                    //     qDebug() << "[Save]Month 150 25 loc 150: " << vizData->statsData[colName].iqr[2][150][150];
+                                                    //     qDebug() << "[Save]Month 150 Median loc 150: " << vizData->statsData[colName].iqr[0][150][150];
+                                                    //     qDebug() << "[Save]Month 150 75 loc 150: " << vizData->statsData[colName].iqr[3][150][150];
+                                                    //     qDebug() << "[Save]Month 150 95 loc 150: " << vizData->statsData[colName].iqr[4][150][150];
+                                                    //     qDebug() << "[Save]Month 150 min loc 150: " << vizData->statsData[colName].medianMin;
+                                                    //     qDebug() << "[Save]Month 150 max loc 150: " << vizData->statsData[colName].medianMax;
+                                                    // }
                                                     saveStatsData();
                                         }, Qt::QueuedConnection);
                                     });
@@ -743,16 +744,16 @@ void MainWindow::loadStatsData(QString tableName){
                                                     model->setStringList(columnList);
                                                     ui->cb_col_name_list->setModel(model);
 
-                                                    for(QString colName : vizData->statsData.keys()){
-                                                        qDebug() << "[Load]" << colName << vizData->statsData[colName].median.size() << "x" << vizData->statsData[colName].median[0].size();
-                                                        qDebug() << "[Load]Month 150 5 loc 150: " << vizData->statsData[colName].iqr5[150][150];
-                                                        qDebug() << "[Load]Month 150 25 loc 150: " << vizData->statsData[colName].iqr25[150][150];
-                                                        qDebug() << "[Load]Month 150 Median loc 150: " << vizData->statsData[colName].median[150][150];
-                                                        qDebug() << "[Load]Month 150 75 loc 150: " << vizData->statsData[colName].iqr75[150][150];
-                                                        qDebug() << "[Load]Month 150 95 loc 150: " << vizData->statsData[colName].iqr95[150][150];
-                                                        qDebug() << "[Load]Month 150 min loc 150: " << vizData->statsData[colName].medianMin;
-                                                        qDebug() << "[Load]Month 150 max loc 150: " << vizData->statsData[colName].medianMax;
-                                                    }
+                                                    // for(QString colName : vizData->statsData.keys()){
+                                                    //     qDebug() << "[Load]" << colName << vizData->statsData[colName].iqr[0].size() << "x" << vizData->statsData[colName].iqr[0][0].size();
+                                                    //     qDebug() << "[Load]Month 150 5 loc 150: " << vizData->statsData[colName].iqr[1][150][150];
+                                                    //     qDebug() << "[Load]Month 150 25 loc 150: " << vizData->statsData[colName].iqr[2][150][150];
+                                                    //     qDebug() << "[Load]Month 150 Median loc 150: " << vizData->statsData[colName].iqr[0][150][150];
+                                                    //     qDebug() << "[Load]Month 150 75 loc 150: " << vizData->statsData[colName].iqr[3][150][150];
+                                                    //     qDebug() << "[Load]Month 150 95 loc 150: " << vizData->statsData[colName].iqr[4][150][150];
+                                                    //     qDebug() << "[Load]Month 150 min loc 150: " << vizData->statsData[colName].medianMin;
+                                                    //     qDebug() << "[Load]Month 150 max loc 150: " << vizData->statsData[colName].medianMax;
+                                                    // }
 
                                                     resetMedianMap();
                                                     showItemsAfterProcessClicked();

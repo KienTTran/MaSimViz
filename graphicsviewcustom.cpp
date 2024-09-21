@@ -232,7 +232,7 @@ void GraphicsViewCustom::updateRasterDataMedian(const QString colName, int month
     for(int loc = 0; loc < vizData->rasterData->nLocations; loc++){
         int row = vizData->rasterData->locationPair1DTo2D[loc].first;
         int col = vizData->rasterData->locationPair1DTo2D[loc].second;
-        double value = vizData->statsData[colName].median[month][loc];
+        double value = vizData->statsData[colName].iqr[0][month][loc];
 
         // Normalize the value to range [0, 1] based on min and max values
         float normalizedValue = (static_cast<float>(value) - vizData->statsData[colName].medianMin) / (vizData->statsData[colName].medianMax - vizData->statsData[colName].medianMin);
