@@ -18,6 +18,7 @@ void ChartCustom::setVizData(VizData *vizData){
 
 void ChartCustom::setChartView(QChartView *chartView){
     this->chartView = chartView;
+    this->chartView->setRubberBand(QChartView::HorizontalRubberBand);
 }
 
 void ChartCustom::plotDataMedianMultipleLocations(QString colName, QMap<int,QColor> locInfo, int currentMonth, QString title) {
@@ -31,6 +32,7 @@ void ChartCustom::plotDataMedianMultipleLocations(QString colName, QMap<int,QCol
 
     // Apply chart theme
     chart->setTheme(QChart::ChartThemeDark);
+
     chart->setTitle(QString("%1").arg(title));
 
     // Create a QValueAxis for the X axis (month) and Y axis (median values)
@@ -38,7 +40,12 @@ void ChartCustom::plotDataMedianMultipleLocations(QString colName, QMap<int,QCol
     axisX->setRange(0, vizData->statsData[colName].iqr[0].size() - 1);  // Set the range for the months
 
     for (int i = 0; i < vizData->statsData[colName].iqr[0].size(); i += 12) {
-        axisX->append(QString("Year %1").arg(i / 12), i);  // Append "Year X" label at every 12th month
+        if(i == 0){
+            axisX->append(QString("Year %1").arg(i / 12), i);  // Append "Year X" label at every 12th month
+        }
+        else{
+            axisX->append(QString("%1").arg(i / 12), i);  // Append "Year X" label at every 12th month
+        }
     }
 
     // Customize tick marks (optional)

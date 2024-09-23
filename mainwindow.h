@@ -42,8 +42,6 @@ protected:
 private slots:
     void on_bt_auto_load_folder_clicked();
 
-    void on_cb_raster_list_currentIndexChanged(int index);
-
     void on_bt_process_clicked();
 
     void on_bt_run_clicked();
@@ -56,7 +54,11 @@ private slots:
 
     void onMouseMoved(const QPoint &pos);
 
-    void on_cb_col_name_list_currentTextChanged(const QString &arg1);
+    void on_cb_data_list_currentTextChanged(const QString &arg1);
+
+    void on_slider_progress_sliderPressed();
+
+    void on_slider_progress_sliderReleased();
 
 public slots:
     void onSquareClicked(const QPoint &pos, const QColor &color);
@@ -75,31 +77,27 @@ private:
     ChartCustom *chart;
 
 private:
+    void checkDirectory(QString path);
     void disabeInputWidgets();
-    void enableInputWidgets();
+    void enableInputWidgets(int screenNumber);
     void showMedianMap();
     void resetMedianMap();
     void hideMedianItems();
-    void showItemsAfterBrowseClicked();
-    void showItemsAfterProcessClicked();
-    bool showItemsAfterRunClicked();
-    void showItemsAfterPauseClicked();
     void resetPlayState();
     void showChart();
     void saveStatsData();
     void processAndSaveStatsData();
     void loadStatsData(QString tableName);
+    void showItemScreenNumber(int screenNumber);
 
 private:
     bool all_rasters_exist = false;
-
-    std::atomic<bool> stopLoop;  // Global or class member to stop the loop
-    bool isRunning = false;             // Global or class member to track play/pause state
+    std::atomic<bool> isRunning = false;             // Global or class member to track play/pause state
     int currentMonth = 0;
     QString currentColNameShown = "";
     QMap<int,QColor> currentLocationSelectedMap;
-
-    bool inspectMode = false;
+    QMap<QString,QString> cbItemPathMap;
+    int screenNumber = 0;
 
 signals:
     void addClearButton(bool show);

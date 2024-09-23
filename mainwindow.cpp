@@ -52,7 +52,6 @@ MainWindow::MainWindow(QWidget *parent)
 
     ui->le_sim_path->setText("");
     ui->le_sim_path->setPlaceholderText("Input simulation path then [Enter] or using [Browse] button");
-    stopLoop = false;
 
     chart = new ChartCustom(this);
     chart->setChartView(ui->gv_chartview);
@@ -66,7 +65,6 @@ MainWindow::MainWindow(QWidget *parent)
 
     QObject::connect(ui->graphicsView, &GraphicsViewCustom::squareClickedOnScene, this, &MainWindow::onSquareClicked);
     QObject::connect(this, &MainWindow::addClearButton, ui->graphicsView, &GraphicsViewCustom::showClearButton);
-
 
     hideMedianItems();
 }
@@ -255,19 +253,6 @@ bool displaySqlDataInDialogWithChecklist(VizData* vizData, QWidget* parentWidget
     }
 }
 
-
-void MainWindow::on_cb_raster_list_currentIndexChanged(int index)
-{
-    LoaderRaster *loader = new LoaderRaster();
-    loader->loadFileSingle(ascFileList[index], vizData, nullptr, nullptr);
-
-    qDebug() << "ncols:" << vizData->rasterData->raster->NCOLS << " nrows:" << vizData->rasterData->raster->NROWS;
-
-    ui->wg_color_map->setColorMapMinMax(QPair<double,double>(vizData->rasterData->dataMin, vizData->rasterData->dataMax));
-
-    ui->graphicsView->updateRasterData();
-}
-
 void MainWindow::onSquareClicked(const QPoint &pos, const QColor &color)
 {
     int location = vizData->rasterData->locationPair2DTo1D[QPair<int,int>(pos.y(),pos.x())];
@@ -285,7 +270,7 @@ void MainWindow::onSquareClicked(const QPoint &pos, const QColor &color)
     }
 
     qDebug() << "[Main]Square select at:" << pos << "loc: " << location << "color: " << color;
-    if(ui->cb_col_name_list->isVisible()){
+    if(screenNumber == 1){
         showChart();
     }
     else{
@@ -307,32 +292,9 @@ void MainWindow::onMouseMoved(const QPoint &pos)
 {
 }
 
-
-void MainWindow::on_bt_auto_load_folder_clicked()
+void MainWindow::checkDirectory(QString selectedDirectory)
 {
-    statusMessage = "No folder selected.";
-    QString defaultDir;
-
-// Check the operating system and set the default directory accordingly
-#if defined(Q_OS_WIN)
-    defaultDir = "C:\\";  // Default directory for Windows
-#elif defined(Q_OS_LINUX)
-    defaultDir = "/home";  // Default directory for Linux
-#elif defined(Q_OS_MAC)
-    defaultDir = "/Users";  // Default directory for macOS
-#else
-    defaultDir = "/";  // Fallback to root if OS is unknown
-#endif
-
-    QString selectedDirectory = QFileDialog::getExistingDirectory(
-        nullptr,                               // Parent widget (null for no parent)
-        "Select Folder",                       // Dialog title
-        defaultDir,                               // Default directory (you can set your default path)
-        QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks  // Show only directories
-        );
-
-    // QString selectedDirectory = "/Users/ktt/Downloads/0ATest_input";
-
+    all_rasters_exist = false;
     if (!selectedDirectory.isEmpty()) {
         qDebug() << "Selected folder:" << selectedDirectory;
         ascFileList = searchForFilesWithPattern(selectedDirectory,"*.asc");
@@ -354,90 +316,129 @@ void MainWindow::on_bt_auto_load_folder_clicked()
     ui->statusbar->showMessage(statusMessage);
 
     if(all_rasters_exist){
+        screenNumber = 0;
         resetMedianMap();
-        enableInputWidgets();
-        showItemsAfterBrowseClicked();
-
+        enableInputWidgets(screenNumber);
         ui->le_sim_path->setText(selectedDirectory);
         vizData->currentDirectory = selectedDirectory;
+        showItemScreenNumber(screenNumber);
+    }
+}
 
-        //Display only filenames in the combobox
-        QStringList ascFileNameList;
-        for(const QString &ascFilePath : ascFileList){
-            QFileInfo fileInfo(ascFilePath);
-            ascFileNameList.append(fileInfo.fileName());
-        }
+void MainWindow::on_le_sim_path_returnPressed()
+{
+    statusMessage = "No folder selected.";
 
-        QStringListModel *model = new QStringListModel(this);
-        model->setStringList(ascFileNameList);
-        ui->cb_raster_list->setModel(model);
+    // Open a file dialog to select a folder
+    QString selectedDirectory = ui->le_sim_path->text();
+
+    checkDirectory(selectedDirectory);
+}
+
+void MainWindow::on_bt_auto_load_folder_clicked()
+{
+    if(!isRunning){
+        statusMessage = "No folder selected.";
+        QString defaultDir;
+
+    // Check the operating system and set the default directory accordingly
+    #if defined(Q_OS_WIN)
+        defaultDir = "C:\\";  // Default directory for Windows
+    #elif defined(Q_OS_LINUX)
+        defaultDir = "/home";  // Default directory for Linux
+    #elif defined(Q_OS_MAC)
+        defaultDir = "/Users";  // Default directory for macOS
+    #else
+        defaultDir = "/";  // Fallback to root if OS is unknown
+    #endif
+
+        QString selectedDirectory = QFileDialog::getExistingDirectory(
+            nullptr,                               // Parent widget (null for no parent)
+            "Select Folder",                       // Dialog title
+            defaultDir,                               // Default directory (you can set your default path)
+            QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks // Show only directories
+            );
+
+        checkDirectory(selectedDirectory);
+    }
+    else{
+        QMessageBox::information(this, "Information", "Plese stop playing first!");
     }
 }
 
 void MainWindow::on_bt_process_clicked()
 {
-    loader = nullptr;
-    loader = new LoaderYML();
-    loader->loadFileSingle(ymlFileList[0], vizData, nullptr, nullptr);
 
-    loader = nullptr;
-    loader = new LoaderSQLite();
+    if(!isRunning){
+        loader = nullptr;
+        loader = new LoaderYML();
+        loader->loadFileSingle(ymlFileList[0], vizData, nullptr, nullptr);
 
-    loader->loadFileSingle(dbFileList[0], vizData, nullptr, nullptr);
+        loader = nullptr;
+        loader = new LoaderSQLite();
 
-    if(!displaySqlDataInDialogWithChecklist(vizData, this)){
-        return;
-    }      
+        loader->loadFileSingle(dbFileList[0], vizData, nullptr, nullptr);
 
-    ui->statusbar->showMessage("Loading database files...");
+        if(!displaySqlDataInDialogWithChecklist(vizData, this)){
+            return;
+        }
 
-    if(vizData->sqlData.tableColumnsMap.isEmpty()){
-        QMessageBox::information(this, "Information", "No columns selected.");
-        return;
+        ui->statusbar->showMessage("Loading database files...");
+
+        if(vizData->sqlData.tableColumnsMap.isEmpty()){
+            QMessageBox::information(this, "Information", "No columns selected.");
+            return;
+        }
+
+        disabeInputWidgets();
+        loader->loadDBList(dbFileList,
+                           vizData->sqlData.locationID,
+                           vizData->sqlData.monthID,
+                           vizData->sqlData.tableColumnsMap[vizData->sqlData.tableColumnsMap.keys().last()],
+                           vizData->sqlData.tableColumnsMap.keys().last(), vizData,
+                           [this](int progress) {  // Progress callback
+                               QMetaObject::invokeMethod(this, [this, progress]() {
+                                   ui->statusbar->showMessage("Loading database files... " + QString::number(progress) + "%");
+                               }, Qt::QueuedConnection);
+                           },
+                           [this]() {  // Completion callback
+                               QMetaObject::invokeMethod(this, [this]() {
+                                   qDebug() << "Loading complete!";
+                                   ui->statusbar->showMessage("Loading database complete!");
+
+                                   // for(QString colName : vizData->statsData.keys()){
+                                   //     for (int j = 0; j < vizData->statsData[colName].data.size(); j++) {
+                                   //         qDebug() << "Data:" << colName << "j:" << vizData->statsData[colName].data[j][150][150];
+                                   //     }
+                                   // }
+
+                                   QString tableName = vizData->sqlData.tableColumnsMap.keys().last();
+                                   int tableIndex = vizData->sqlData.dbTables.indexOf(tableName);
+                                   QFile file(QDir(vizData->currentDirectory).filePath("MaSimViz_"+vizData->sqlData.tableColumnsMap.keys().last() + ".dat"));
+                                   if(file.exists()){
+                                       loadStatsData(tableName);
+                                   }
+                                   else{
+                                       processAndSaveStatsData();
+                                   }
+                               }, Qt::QueuedConnection);
+                           });
     }
-
-    disabeInputWidgets();
-
-    loader->loadDBList(dbFileList,
-                       vizData->sqlData.locationID,
-                       vizData->sqlData.monthID,
-                       vizData->sqlData.tableColumnsMap[vizData->sqlData.tableColumnsMap.keys().last()],
-                       vizData->sqlData.tableColumnsMap.keys().last(), vizData,
-                       [this](int progress) {  // Progress callback
-                            QMetaObject::invokeMethod(this, [this, progress]() {
-                                ui->progress_bar->setValue(progress);  // Update the progress bar value
-                                ui->statusbar->showMessage("Loading database files... " + QString::number(progress) + "%");
-                            }, Qt::QueuedConnection);
-                        },
-                       [this]() {  // Completion callback
-                           QMetaObject::invokeMethod(this, [this]() {
-                               qDebug() << "Loading complete!";
-                               ui->statusbar->showMessage("Loading database complete!");
-
-                               // for(QString colName : vizData->statsData.keys()){
-                               //     for (int j = 0; j < vizData->statsData[colName].data.size(); j++) {
-                               //         qDebug() << "Data:" << colName << "j:" << vizData->statsData[colName].data[j][150][150];
-                               //     }
-                               // }
-
-                               QString tableName = vizData->sqlData.tableColumnsMap.keys().last();
-                               int tableIndex = vizData->sqlData.dbTables.indexOf(tableName);
-                               QFile file(QDir(vizData->currentDirectory).filePath("MaSimViz_"+vizData->sqlData.tableColumnsMap.keys().last() + ".dat"));
-                               if(file.exists()){
-                                   loadStatsData(tableName);
-                               }
-                               else{
-                                   processAndSaveStatsData();
-                               }
-                           }, Qt::QueuedConnection);
-                       });
+    else{
+        QMessageBox::information(this, "Information", "Plese stop playing first!");
+    }
 }
 
 void MainWindow::on_bt_run_clicked()
 {
-    // Otherwise, start or resume the loop
-    if(showItemsAfterRunClicked())
-        return;
+    isRunning = !isRunning;
+    if (isRunning) {
+        ui->bt_run->setText("Pause");
+    } else {
+        ui->bt_run->setText("Run");
+    }
+
+    qDebug() << "clicked run" << currentMonth;
 
     QFutureWatcher<void> *futureWatcher = new QFutureWatcher<void>(this);
 
@@ -445,7 +446,7 @@ void MainWindow::on_bt_run_clicked()
     QFuture<void> future = QtConcurrent::run([=]() {
         for (int month = currentMonth; month < vizData->statsData[currentColNameShown].iqr[0].size(); month++) {
             // Check if the loop should be stopped
-            if (stopLoop) {
+            if (!isRunning) {
                 currentMonth = month;
                 break;
             }
@@ -465,111 +466,77 @@ void MainWindow::on_bt_run_clicked()
 
     // Connect the futureWatcher to a slot to handle when the background task finishes
     QObject::connect(futureWatcher, &QFutureWatcher<void>::finished, this, [=]() {
-        // Reset the state when processing finishes
-        qDebug() << "Running finished!";
-        if (!stopLoop)
-        {
-            qDebug() << "Running finished !stopLoop !";
+        if (ui->slider_progress->value() == vizData->monthCountStartToEnd - 1) {
+            // Reset the state when processing finishes
+            // qDebug() << "Running finished!";
             resetPlayState();
         }
-        isRunning = false;
-        stopLoop = false;
     });
-}
-
-
-
-void MainWindow::on_le_sim_path_returnPressed()
-{
-    statusMessage = "No folder selected.";
-
-    // Open a file dialog to select a folder
-    QString selectedDirectory = ui->le_sim_path->text();
-
-    if (!selectedDirectory.isEmpty()) {
-        qDebug() << "Selected folder:" << selectedDirectory;
-        ascFileList = searchForFilesWithPattern(selectedDirectory,"*.asc");
-        dbFileList = searchForFilesWithPattern(selectedDirectory,"*.db");
-        ymlFileList = searchForFilesWithPattern(selectedDirectory,"*.yml");
-        csvFileList = searchForFilesWithPattern(selectedDirectory,"*.csv");
-        int ascFilesCount = ascFileList.size();
-        int dbFilesCount = dbFileList.size();
-        if(ascFilesCount + dbFilesCount == 0){
-            QMessageBox::information(this, "Information", "No .asc or .db files found in the selected folder.");
-        }
-        else{
-            all_rasters_exist = true;
-        }
-        statusMessage = "Loaded " + selectedDirectory + " (" + QString::number(ascFilesCount) + " .asc files, " + QString::number(dbFilesCount) + " .db files)";
-    } else {
-        qDebug() << "No folder selected.";
-    }
-    ui->statusbar->showMessage(statusMessage);
-
-    if(all_rasters_exist){
-        enableInputWidgets();
-        //Display only filenames in the combobox
-        QStringList ascFileNameList;
-        for(const QString &ascFilePath : ascFileList){
-            QFileInfo fileInfo(ascFilePath);
-            ascFileNameList.append(fileInfo.fileName());
-        }
-
-        QStringListModel *model = new QStringListModel(this);
-        model->setStringList(ascFileNameList);
-        ui->cb_raster_list->setModel(model);
-    }
 }
 
 void MainWindow::on_slider_progress_valueChanged(int value)
 {
-    currentMonth = value + 1;
+    currentMonth = value;
     if (currentMonth >= vizData->monthCountStartToEnd) {
         currentMonth = vizData->monthCountStartToEnd - 1;
     }
     showMedianMap();
     showChart();
-    ui->statusbar->showMessage("Month: " + QString::number(currentMonth) + " Year: " + QString::number(currentMonth / 12));
+    ui->statusbar->showMessage("Month: " + QString::number(currentMonth + 1) + " Year: " + QString::number(currentMonth / 12));
     // qDebug() << value << "Month:" << currentMonth;
 }
 
+void MainWindow::on_slider_progress_sliderMoved(int value)
+{
+    ui->slider_progress->setValue(value);
+}
 
-void MainWindow::on_slider_progress_sliderMoved(int position)
+
+void MainWindow::on_slider_progress_sliderPressed()
 {
     isRunning = false;
-    stopLoop = true;
+    ui->bt_run->setText("Run");
+    currentMonth = ui->slider_progress->value();
+    qDebug() << "Slider pressed!" << "value:" << ui->slider_progress->value();
 }
 
 
-void MainWindow::on_cb_col_name_list_currentTextChanged(const QString &colName)
+void MainWindow::on_slider_progress_sliderReleased()
 {
-    qDebug() << "Column name changed to:" << colName;
-    currentColNameShown = colName;
-    showMedianMap();
-    showChart();
+    isRunning = false;
+    ui->bt_run->setText("Run");
+    currentMonth = ui->slider_progress->value();
+    qDebug() << "Slider released!" << "value:" << ui->slider_progress->value();
 }
+
 
 void MainWindow::disabeInputWidgets(){
     ui->le_sim_path->setEnabled(false);
     ui->bt_process->setEnabled(false);
-    ui->cb_raster_list->setEnabled(false);
-    ui->cb_col_name_list->setEnabled(false);
+    ui->cb_data_list->setEnabled(false);
     ui->bt_auto_load_folder->setEnabled(false);
     ui->bt_run->setEnabled(false);
     ui->graphicsView->setEnabled(false);
     ui->slider_progress->setEnabled(false);
 }
 
-void MainWindow::enableInputWidgets(){
-    ui->le_sim_path->setEnabled(true);
-    ui->bt_process->setEnabled(true);
-    ui->cb_raster_list->setEnabled(true);
-    ui->cb_col_name_list->setEnabled(true);
-    ui->bt_auto_load_folder->setEnabled(true);
-    ui->progress_bar->setValue(0);
-    ui->bt_run->setEnabled(true);
-    ui->graphicsView->setEnabled(true);
-    ui->slider_progress->setEnabled(true);
+void MainWindow::enableInputWidgets(int screenNumber){
+    if(screenNumber == 0){
+        ui->le_sim_path->setEnabled(true);
+        ui->bt_auto_load_folder->setEnabled(true);
+        ui->bt_process->setEnabled(true);
+        ui->cb_data_list->setEnabled(true);
+        ui->graphicsView->setEnabled(true);
+    }
+    if(screenNumber == 1){
+        ui->le_sim_path->setEnabled(true);
+        ui->bt_auto_load_folder->setEnabled(true);
+        ui->bt_process->setEnabled(true);
+        ui->cb_data_list->setEnabled(true);
+        ui->bt_run->setEnabled(true);
+        ui->graphicsView->setEnabled(true);
+        ui->slider_progress->setEnabled(true);
+    }
 }
 
 void MainWindow::resetMedianMap(){
@@ -594,72 +561,60 @@ void MainWindow::showMedianMap(){
 void MainWindow::showChart(){
     ui->gv_chartview->setHidden(currentLocationSelectedMap.isEmpty());
     if(ui->gv_chartview->isVisible()){
-        chart->plotDataMedianMultipleLocations(currentColNameShown, currentLocationSelectedMap, currentMonth, ui->cb_col_name_list->currentText());
+        chart->plotDataMedianMultipleLocations(currentColNameShown, currentLocationSelectedMap, currentMonth, ui->cb_data_list->currentText());
     }
 }
 
 void MainWindow::hideMedianItems(){
-    ui->slider_progress->setHidden(true);
-    ui->cb_col_name_list->setHidden(true);
     ui->gv_chartview->setHidden(true);
 }
 
-void MainWindow::showItemsAfterBrowseClicked(){
-    ui->cb_raster_list->setHidden(false);
-    ui->cb_col_name_list->setHidden(ui->cb_raster_list->isVisible());
-    ui->slider_progress->setHidden(true);
-    ui->progress_bar->setHidden(ui->slider_progress->isVisible());
-    ui->slider_progress->setValue(0);
-    ui->progress_bar->setValue(0);
-    ui->bt_run->setEnabled(false);
-    ui->wg_color_map->setHidden(false);
-    ui->gv_chartview->setHidden(true);
-}
-
-void MainWindow::showItemsAfterProcessClicked(){
-    ui->cb_col_name_list->setHidden(false);
-    ui->cb_raster_list->setHidden(ui->cb_col_name_list->isVisible());
-    ui->slider_progress->setHidden(false);
-    ui->progress_bar->setHidden(ui->slider_progress->isVisible());
-    ui->slider_progress->setValue(0);
-    ui->slider_progress->setMaximum(vizData->monthCountStartToEnd - 1);
-    ui->progress_bar->setValue(0);
-    isRunning = false;
-    stopLoop = false;
-}
-
-bool MainWindow::showItemsAfterRunClicked(){
-    if (isRunning) {
-        // If running, pause the loop
-        stopLoop = true;
+void MainWindow::showItemScreenNumber(int screenNumber){
+    if(screenNumber == 0){
+        enableInputWidgets(screenNumber);
+        hideMedianItems();
+        resetPlayState();
+        ui->slider_progress->setValue(0);
+        ui->slider_progress->setEnabled(false);
+        ui->bt_run->setEnabled(false);
+        ui->wg_color_map->setHidden(false);
+        ui->gv_chartview->setHidden(true);
+        //Display only filenames in the combobox
+        QStringList ascFileNameList;
+        for(const QString &ascFilePath : ascFileList){
+            QFileInfo fileInfo(ascFilePath);
+            ascFileNameList.append(fileInfo.fileName());
+            cbItemPathMap[fileInfo.fileName()] = ascFilePath;
+        }
+        QStringListModel *model = new QStringListModel(this);
+        model->setStringList(ascFileNameList);
+        ui->cb_data_list->setModel(model);
+    }
+    else if(screenNumber == 1){
+        enableInputWidgets(screenNumber);
+        hideMedianItems();
+        resetPlayState();
         isRunning = false;
-        ui->bt_run->setText("Run");
-        return true;
+        ui->slider_progress->setValue(0);
+        ui->slider_progress->setEnabled(true);
+        ui->slider_progress->setMaximum(vizData->monthCountStartToEnd - 1);
+        QStringListModel *model = new QStringListModel(this);
+        QStringList columnList = vizData->statsData.keys();
+        model->setStringList(columnList);
+        ui->cb_data_list->setModel(model);
     }
-    ui->bt_run->setText("Pause");
-    isRunning = true;
-    stopLoop = false;
-    if(ui->progress_bar->isVisible()){
-        ui->progress_bar->setHidden(true);
-    }
-    ui->slider_progress->setHidden(ui->progress_bar->isVisible());
-    return false;
 }
 
 void MainWindow::resetPlayState(){
     isRunning = false;
-    stopLoop = false;
     ui->bt_run->setText("Run");
-    ui->progress_bar->setValue(0);
     ui->slider_progress->setValue(0);
-    ui->statusbar->showMessage("Playing complete.");
 }
 
 void MainWindow::saveStatsData(){
     dataProcessor->saveStatsDataToCSV(vizData,
                                       [this](int progress) {  // Progress callback
                                           QMetaObject::invokeMethod(this, [this, progress]() {
-                                              ui->progress_bar->setValue(progress);  // Update the progress bar value
                                               ui->statusbar->showMessage("Saving IQR data to CSV ... " + QString::number(progress) + "%");
                                           }, Qt::QueuedConnection);
                                       },
@@ -668,15 +623,11 @@ void MainWindow::saveStatsData(){
                                               qDebug() << "Saving IQR data to CSV complete!";
                                               ui->statusbar->showMessage("Saving IQR data to CSV complete!");
 
-                                              QStringListModel *model = new QStringListModel(this);
-                                              QStringList columnList = vizData->statsData.keys();
-                                              model->setStringList(columnList);
-                                              ui->cb_col_name_list->setModel(model);
-
                                               resetMedianMap();
-                                              showItemsAfterProcessClicked();
                                               showMedianMap();
-                                              enableInputWidgets();
+                                              screenNumber = 1;
+                                              enableInputWidgets(screenNumber);
+                                              showItemScreenNumber(screenNumber);
                                           }, Qt::QueuedConnection);
                                       });
 }
@@ -684,7 +635,6 @@ void MainWindow::saveStatsData(){
 void MainWindow::processAndSaveStatsData(){
     dataProcessor->processStatsData(vizData,[this](int progress) {  // Progress callback
                                                 QMetaObject::invokeMethod(this, [this, progress]() {
-                                                    ui->progress_bar->setValue(progress);  // Update the progress bar value
                                                     ui->statusbar->showMessage("Calculating IQR ... " + QString::number(progress) + "%");
                                                 }, Qt::QueuedConnection);
                                             },
@@ -712,7 +662,6 @@ void MainWindow::loadStatsData(QString tableName){
     dataProcessor->loadStatsDataFromCSV(tableName, vizData,
                                         [this](int progress) {  // Progress callback
                                             QMetaObject::invokeMethod(this, [this, progress]() {
-                                                ui->progress_bar->setValue(progress);  // Update the progress bar value
                                                 ui->statusbar->showMessage("Loading IQR data from CSV ... " + QString::number(progress) + "%");
                                             }, Qt::QueuedConnection);
                                         },
@@ -740,11 +689,6 @@ void MainWindow::loadStatsData(QString tableName){
                                                     break;
                                                 }
                                                 if(readCode == 0){
-                                                    QStringListModel *model = new QStringListModel(this);
-                                                    QStringList columnList = vizData->statsData.keys();
-                                                    model->setStringList(columnList);
-                                                    ui->cb_col_name_list->setModel(model);
-
                                                     // for(QString colName : vizData->statsData.keys()){
                                                     //     qDebug() << "[Load]" << colName << vizData->statsData[colName].iqr[0].size() << "x" << vizData->statsData[colName].iqr[0][0].size();
                                                     //     qDebug() << "[Load]Month 150 5 loc 150: " << vizData->statsData[colName].iqr[1][150][150];
@@ -755,11 +699,11 @@ void MainWindow::loadStatsData(QString tableName){
                                                     //     qDebug() << "[Load]Month 150 min loc 150: " << vizData->statsData[colName].medianMin;
                                                     //     qDebug() << "[Load]Month 150 max loc 150: " << vizData->statsData[colName].medianMax;
                                                     // }
-
                                                     resetMedianMap();
-                                                    showItemsAfterProcessClicked();
                                                     showMedianMap();
-                                                    enableInputWidgets();
+                                                    screenNumber = 1;
+                                                    enableInputWidgets(screenNumber);
+                                                    showItemScreenNumber(screenNumber);
                                                 }
                                                 else {
                                                     //Create a dialog and ask if user want to generate new stats
@@ -772,10 +716,31 @@ void MainWindow::loadStatsData(QString tableName){
                                                         processAndSaveStatsData();
                                                     }
                                                     else{
-                                                        enableInputWidgets();
+                                                        qDebug() << screenNumber;
+                                                        enableInputWidgets(screenNumber);
                                                     }
                                                     return;
                                                 }
                                             }, Qt::QueuedConnection);
                                         });
 }
+
+void MainWindow::on_cb_data_list_currentTextChanged(const QString &name)
+{
+    if(screenNumber == 0){
+        int rasterIndex = ascFileList.indexOf(cbItemPathMap[name]);
+        LoaderRaster *loader = new LoaderRaster();
+        loader->loadFileSingle(ascFileList[rasterIndex], vizData, nullptr, nullptr);
+        qDebug() << "ncols:" << vizData->rasterData->raster->NCOLS << " nrows:" << vizData->rasterData->raster->NROWS;
+        ui->wg_color_map->setColorMapMinMax(QPair<double,double>(vizData->rasterData->dataMin, vizData->rasterData->dataMax));
+        ui->graphicsView->updateRasterData();
+    }
+    if(screenNumber == 1){
+        qDebug() << "Column name changed to:" << name;
+        currentColNameShown = name;
+        showMedianMap();
+        showChart();
+
+    }
+}
+

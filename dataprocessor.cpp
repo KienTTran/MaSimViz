@@ -47,7 +47,8 @@ void processStatsDataWorker(VizData* vizData, std::function<void(int)> progressC
     int nDatabases = vizData->statsData[vizData->statsData.keys()[0]].data.size();  // Number of databases
     int nLocations = vizData->rasterData->nLocations; // Number of locations
     int nMonths = vizData->monthCountStartToEnd;  // Number of months
-    int progress = 0;
+    long totalNumbers = vizData->statsData.keys().size() * nMonths * nLocations * vizData->statsData[vizData->statsData.keys()[0]].iqrRanges.size();
+    long progress = 0;
 
     QVector<QFuture<void>> futures; // Store futures to wait for all threads to finish
 
@@ -71,12 +72,17 @@ void processStatsDataWorker(VizData* vizData, std::function<void(int)> progressC
                     values.append(stats.data[db][loc][month]);
                 }
 
-                if (progressCallback) {
-                    progressCallback(1);  // Report percentage progress, normalized to 0-100
-                }
                 for(int i = 0; i < stats.iqrRanges.size(); i++){
                     // futures.append(QtConcurrent::run(calculatePercentiles, std::ref(stats), values, month, loc, stats.iqrRanges[i], std::ref(stats.iqr[i])));
                     calculatePercentiles(stats, values, month, loc, stats.iqrRanges[i], stats.iqr[i]);
+                }
+
+                int progressPercentage = (progress * 100) / (totalNumbers);
+                // qDebug() << "[DataProcessor] Progress:" << progress << "/" << vizData->statsData.keys().size() * nMonths * nLocations * stats.iqrRanges.size();
+                progress += stats.iqrRanges.size();
+
+                if (progressCallback) {
+                    progressCallback(progressPercentage);
                 }
 
                 // Update global min/max values from data
@@ -103,10 +109,6 @@ void processStatsDataWorker(VizData* vizData, std::function<void(int)> progressC
         stats.dataMax = globalMax;
         stats.medianMin = globalMedianMin;
         stats.medianMax = globalMedianMax;
-
-        if (progressCallback) {
-            progressCallback((colNameIndex * 100) / vizData->statsData.keys().size());  // Report percentage progress, normalized to 0-100
-        }
     }
 }
 
