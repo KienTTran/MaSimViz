@@ -47,7 +47,7 @@ void GraphicsViewCustom::initSquareScene(){
         int row = vizData->rasterData->locationPair1DTo2D[loc].first;
         int col = vizData->rasterData->locationPair1DTo2D[loc].second;
 
-        SquareItem *square = new SquareItem(col,row);
+        SquareItem *square = new SquareItem(col,row, -1);
         square->setBrush(QColor::fromRgbF(0.1,0.1,0.1));
         QObject::connect(square, &SquareItem::squareClicked, this, &GraphicsViewCustom::onSquareClicked);
         squareItemList[col][row] = square;
@@ -229,13 +229,23 @@ void GraphicsViewCustom::updateRasterDataMedian(const QString colName, int month
         return;
     }
 
+    int row = -1;
+    int col = -1;
+    double value = 0.0;
     for(int loc = 0; loc < vizData->rasterData->nLocations; loc++){
-        int row = vizData->rasterData->locationPair1DTo2D[loc].first;
-        int col = vizData->rasterData->locationPair1DTo2D[loc].second;
-        double value = vizData->statsData[colName].iqr[0][month][loc];
+        row = vizData->rasterData->locationPair1DTo2D[loc].first;
+        col = vizData->rasterData->locationPair1DTo2D[loc].second;
+        if(vizData->isDistrictReporter){
+            int dictrictLoc = vizData->rasterData->locationPair2DTo1DDistrict[QPair<int,int>(row,col)];
+            value = vizData->statsData[colName].iqr[0][month][dictrictLoc];
+        }
+        else{
+            value = vizData->statsData[colName].iqr[0][month][loc];
+        }
 
         // Normalize the value to range [0, 1] based on min and max values
         float normalizedValue = (static_cast<float>(value) - vizData->statsData[colName].medianMin) / (vizData->statsData[colName].medianMax - vizData->statsData[colName].medianMin);
+        // float normalizedValue = (static_cast<float>(value) - rasterData->dataMin) / (rasterData->dataMax - rasterData->dataMin);
 
         // Determine which color stop range this value falls into
         int nColorSteps = vizData->colorMap.size() - 1;

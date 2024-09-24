@@ -71,19 +71,23 @@ private:
     QStringList dbFileList;
     QStringList ymlFileList;
     QStringList csvFileList;
+    QString districtRasterPath;
     QGraphicsScene *scene;
     VizData *vizData;
     DataProcessor *dataProcessor;
     ChartCustom *chart;
 
 private:
+    bool displaySqlDataInDialogWithChecklist(VizData* vizData, QWidget* parentWidget = nullptr);
     void checkDirectory(QString path);
     void disabeInputWidgets();
     void enableInputWidgets(int screenNumber);
-    void showMedianMap();
+    void showMap(QString name);
+    void updateMedianMap();
     void resetMedianMap();
     void hideMedianItems();
     void resetPlayState();
+    void showLastSquareValue();
     void showChart();
     void saveStatsData();
     void processAndSaveStatsData();
@@ -95,7 +99,7 @@ private:
     std::atomic<bool> isRunning = false;             // Global or class member to track play/pause state
     int currentMonth = 0;
     QString currentColNameShown = "";
-    QMap<int,QColor> currentLocationSelectedMap;
+    QMap<QPair<int,int>,QColor> currentLocationSelectedMap;
     QMap<QString,QString> cbItemPathMap;
     int screenNumber = 0;
 

@@ -27,6 +27,7 @@
 #include <QDebug>
 #include <QLabel>
 #include <QList>
+#include <QFormLayout>
 #include <QStandardItemModel>
 
 #include "loadersqlite.h"
@@ -59,7 +60,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     currentColNameShown = "";
     currentMonth = 0;
-    currentLocationSelectedMap = QMap<int,QColor>();
+    currentLocationSelectedMap = QMap<QPair<int,int>,QColor>();
 
     ui->wg_color_map->setHidden(true);
 
@@ -79,6 +80,17 @@ void MainWindow::resizeEvent(QResizeEvent *event)
     QMainWindow::resizeEvent(event);
 }
 
+QLayout* widgetToLayout(QWidget* w){
+    auto layout = new QVBoxLayout();
+    layout->addWidget( w );
+    return layout;
+}
+QWidget* layoutToWidget(QLayout* l){
+    auto widget = new QWidget();
+    widget->setLayout( l );
+    return widget;
+}
+
 // Function to search for .asc files in the given directory
 QStringList searchForFilesWithPattern(const QString &directoryPath, QString pattern) {
     QDirIterator it(directoryPath, QStringList() << pattern, QDir::Files, QDirIterator::Subdirectories);
@@ -92,13 +104,11 @@ QStringList searchForFilesWithPattern(const QString &directoryPath, QString patt
     return foundFiles;
 }
 
-// Function to display sqlData in a dialog with checkable columns in a checklist per tab
-// Function to display sqlData in a dialog with checkable columns in a checklist per tab
-bool displaySqlDataInDialogWithChecklist(VizData* vizData, QWidget* parentWidget = nullptr) {
+bool MainWindow::displaySqlDataInDialogWithChecklist(VizData* vizData, QWidget* parentWidget) {
     // Create the dialog
     QDialog* dialog = new QDialog(parentWidget);
     dialog->setWindowTitle("Select columns to plot");
-    dialog->resize(600, 400); // Set an initial size for the dialog
+    dialog->resize(600, 600); // Set an initial size for the dialog
     dialog->setWindowFlags(Qt::Dialog | Qt::CustomizeWindowHint | Qt::WindowTitleHint);
 
     // Create a QTabWidget to display the tables
@@ -166,22 +176,62 @@ bool displaySqlDataInDialogWithChecklist(VizData* vizData, QWidget* parentWidget
     // Create QLineEdit fields for locationID and monthID
     QLineEdit* locationIdEdit = new QLineEdit(dialog);
     locationIdEdit->setPlaceholderText(vizData->sqlData.locationID + " (default)");
+    locationIdEdit->setMinimumWidth(400);  // Ensure the line edit expands
 
     QLineEdit* monthIdEdit = new QLineEdit(dialog);
     monthIdEdit->setPlaceholderText(vizData->sqlData.monthID + " (default)");
+    monthIdEdit->setMinimumWidth(400);     // Ensure the line edit expands
 
     // Create labels for the LocationID and MonthID fields
     QLabel* locationIdLabel = new QLabel("Location column name:", dialog);
     QLabel* monthIdLabel = new QLabel("Month column name:", dialog);
 
-    // Create layouts to hold the label and text field side by side
-    QHBoxLayout* locationIdLayout = new QHBoxLayout();
-    locationIdLayout->addWidget(locationIdLabel);
-    locationIdLayout->addWidget(locationIdEdit);
+    // Use QFormLayout for proper alignment and full width
+    QFormLayout* formLayout = new QFormLayout();
+    formLayout->addRow(locationIdLabel, locationIdEdit); // Add label and corresponding edit field
+    formLayout->addRow(monthIdLabel, monthIdEdit);       // Add label and corresponding edit field
 
-    QHBoxLayout* monthIdLayout = new QHBoxLayout();
-    monthIdLayout->addWidget(monthIdLabel);
-    monthIdLayout->addWidget(monthIdEdit);
+    // Ensure the form layout fields grow to full width
+    formLayout->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+    formLayout->setLabelAlignment(Qt::AlignLeft);
+    formLayout->setFormAlignment(Qt::AlignLeft);
+
+    // Create a combo box with two options: "District" and "Pixel"
+    QComboBox* reporterType = new QComboBox(dialog);
+    reporterType->addItem("Pixel");
+    reporterType->addItem("District");
+
+    QLabel* reporterTypeLabel = new QLabel("Select type:", dialog);
+
+    // Create a layout for the combo box
+    QHBoxLayout* reporterTypeLayout = new QHBoxLayout();
+    reporterTypeLayout->addWidget(reporterTypeLabel);
+    reporterTypeLayout->addWidget(reporterType);
+
+
+    // Create a combo box with two options: "District" and "Pixel"
+    QComboBox* rasterSelection = new QComboBox(dialog);
+    QStringList ascFileNameList;
+    for(const QString &ascFilePath : ascFileList){
+        QFileInfo fileInfo(ascFilePath);
+        ascFileNameList.append(fileInfo.fileName());
+        cbItemPathMap[fileInfo.fileName()] = ascFilePath;
+    }
+    QStringListModel *model = new QStringListModel(this);
+    model->setStringList(ascFileNameList);
+    rasterSelection->setModel(model);
+
+    QLabel* rasterSelectionLabel = new QLabel("Select district raster:", dialog);
+
+    // Create a layout for the combo box
+    QHBoxLayout* rasterSelectionLayout = new QHBoxLayout();
+    rasterSelectionLayout->addWidget(rasterSelectionLabel);
+    rasterSelectionLayout->addWidget(rasterSelection);
+    rasterSelectionLabel->setVisible(false);
+    rasterSelection->setVisible(false);
+    QObject::connect(rasterSelection, &QComboBox::currentTextChanged, [=](const QString &text) {
+        districtRasterPath = cbItemPathMap[text];
+    });
 
     // Create a QDialogButtonBox with OK and Cancel buttons
     QDialogButtonBox* buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
@@ -189,17 +239,26 @@ bool displaySqlDataInDialogWithChecklist(VizData* vizData, QWidget* parentWidget
     // Connect the OK button to dialog's accept slot and Cancel button to reject slot
     QObject::connect(buttonBox, &QDialogButtonBox::accepted, dialog, &QDialog::accept);
     QObject::connect(buttonBox, &QDialogButtonBox::rejected, dialog, &QDialog::reject);
+    QObject::connect(reporterType, &QComboBox::currentTextChanged, [=](const QString &text) {
+        if(text == "District"){
+            rasterSelectionLabel->setVisible(true);
+            rasterSelection->setVisible(true);
+            vizData->isDistrictReporter = true;
+        }
+        else{
+            rasterSelectionLabel->setVisible(false);
+            rasterSelection->setVisible(false);
+            vizData->isDistrictReporter = false;
+        }
+    });
 
     // Create a layout for the dialog
     QVBoxLayout* layout = new QVBoxLayout(dialog);
-    layout->addWidget(tabWidget);      // Add the QTabWidget to the layout
-    layout->addLayout(locationIdLayout); // Add the location ID label and text field
-    layout->addLayout(monthIdLayout);    // Add the month ID label and text field
-    layout->addWidget(buttonBox);      // Add the button box to the layout
-
-    // Set the layout for the dialog
-    dialog->setLayout(layout);
-
+    layout->addWidget(tabWidget);         // Add the QTabWidget to the layout
+    layout->addLayout(formLayout);        // Add the form layout containing LocationID and MonthID fields
+    layout->addLayout(reporterTypeLayout);    // Add the combo box layout
+    layout->addLayout(rasterSelectionLayout);    // Add the combo box layout
+    layout->addWidget(buttonBox);         // Add the button box to the layout
 
     // Set the layout for the dialog
     dialog->setLayout(layout);
@@ -226,10 +285,15 @@ bool displaySqlDataInDialogWithChecklist(VizData* vizData, QWidget* parentWidget
         qDebug() << "Dialog accepted";  // Add this for debugging
         QString locationID = locationIdEdit->text();  // Capture locationID
         QString monthID = monthIdEdit->text();        // Capture monthID
+        QString reportType = reporterType->currentText(); // Capture selected combo box option
         qDebug() << "Location :" << locationID;
         qDebug() << "Month ID:" << monthID;
+        if(vizData->isDistrictReporter){
+            qDebug() << "Reporter Type:" << reportType;
+            qDebug() << "District map:" << districtRasterPath;
+        }
 
-        for (const QString& tableName : checkBoxStatus.keys()) {
+        for (const QString tableName : checkBoxStatus.keys()) {
             int tableIndex = vizData->sqlData.dbTables.indexOf(tableName);
             QString selectedColumns = "";
             for (int j = 0; j < checkBoxStatus[tableName].size(); ++j) {
@@ -253,11 +317,30 @@ bool displaySqlDataInDialogWithChecklist(VizData* vizData, QWidget* parentWidget
     }
 }
 
+void MainWindow::showLastSquareValue(){
+    if(currentLocationSelectedMap.isEmpty()){
+        ui->statusbar->showMessage("No location selected");
+    }
+    else{
+        int lastLocation = -1;
+        if(vizData->isDistrictReporter){
+            lastLocation = vizData->rasterData->locationPair2DTo1DDistrict[currentLocationSelectedMap.keys().last()];
+        }
+        else{
+            lastLocation = vizData->rasterData->locationPair2DTo1D[currentLocationSelectedMap.keys().last()];
+        }
+        QPair<int,int> lastPos = vizData->rasterData->locationPair1DTo2D[lastLocation];
+        double data = vizData->rasterData->raster->data[lastPos.first][lastPos.second];
+        ui->statusbar->showMessage("Location: " + QString::number(lastLocation)
+                                   + "(row: " + QString::number(lastPos.first) + ", col: " + QString::number(lastPos.second) + ")"
+                                   + " Value: " + QString::number(data));
+    }
+}
+
 void MainWindow::onSquareClicked(const QPoint &pos, const QColor &color)
 {
-    int location = vizData->rasterData->locationPair2DTo1D[QPair<int,int>(pos.y(),pos.x())];
-    if(currentLocationSelectedMap.contains(location)){
-        currentLocationSelectedMap.remove(location);
+    if(currentLocationSelectedMap.contains(QPair<int,int>(pos.y(),pos.x()))){
+        currentLocationSelectedMap.remove(QPair<int,int>(pos.y(),pos.x()));
     }
     else{
         if(pos.x() == -1 && pos.y() == -1){
@@ -265,24 +348,16 @@ void MainWindow::onSquareClicked(const QPoint &pos, const QColor &color)
             qDebug() << "[Main]Clear all locations";
         }
         else{
-            currentLocationSelectedMap[location] = color;
+            currentLocationSelectedMap[QPair<int,int>(pos.y(),pos.x())] = color;
         }
     }
 
-    qDebug() << "[Main]Square select at:" << pos << "loc: " << location << "color: " << color;
+    qDebug() << "[Main]Square select at:" << pos << "loc: " << QPair<int,int>(pos.y(),pos.x()) << "color: " << color;
     if(screenNumber == 1){
         showChart();
     }
     else{
-        if(currentLocationSelectedMap.isEmpty()){
-            ui->statusbar->showMessage("No location selected");
-        }
-        else{
-            double data = vizData->rasterData->raster->data[pos.y()][pos.x()];
-            ui->statusbar->showMessage("Location: " + QString::number(location)
-                                       + "(row: " + QString::number(pos.y()) + ", col: " + QString::number(pos.x()) + ")"
-                                       + " Value: " + QString::number(data));
-        }
+        showLastSquareValue();
     }
 
     emit(addClearButton(!currentLocationSelectedMap.empty()));
@@ -327,12 +402,17 @@ void MainWindow::checkDirectory(QString selectedDirectory)
 
 void MainWindow::on_le_sim_path_returnPressed()
 {
-    statusMessage = "No folder selected.";
+    if(!isRunning){
+        statusMessage = "No folder selected.";
 
-    // Open a file dialog to select a folder
-    QString selectedDirectory = ui->le_sim_path->text();
+        // Open a file dialog to select a folder
+        QString selectedDirectory = ui->le_sim_path->text();
 
-    checkDirectory(selectedDirectory);
+        checkDirectory(selectedDirectory);
+    }
+    else{
+        QMessageBox::information(this, "Information", "Plese stop playing first!");
+    }
 }
 
 void MainWindow::on_bt_auto_load_folder_clicked()
@@ -376,7 +456,6 @@ void MainWindow::on_bt_process_clicked()
 
         loader = nullptr;
         loader = new LoaderSQLite();
-
         loader->loadFileSingle(dbFileList[0], vizData, nullptr, nullptr);
 
         if(!displaySqlDataInDialogWithChecklist(vizData, this)){
@@ -390,7 +469,17 @@ void MainWindow::on_bt_process_clicked()
             return;
         }
 
+        if(vizData->isDistrictReporter){
+            if(!districtRasterPath.isEmpty()){
+                loader = nullptr;
+                loader = new LoaderRaster();
+                loader->loadFileSingle(districtRasterPath, vizData, nullptr, nullptr);
+            }
+        }
+
         disabeInputWidgets();
+        loader = nullptr;
+        loader = new LoaderSQLite();
         loader->loadDBList(dbFileList,
                            vizData->sqlData.locationID,
                            vizData->sqlData.monthID,
@@ -480,7 +569,7 @@ void MainWindow::on_slider_progress_valueChanged(int value)
     if (currentMonth >= vizData->monthCountStartToEnd) {
         currentMonth = vizData->monthCountStartToEnd - 1;
     }
-    showMedianMap();
+    updateMedianMap();
     showChart();
     ui->statusbar->showMessage("Month: " + QString::number(currentMonth + 1) + " Year: " + QString::number(currentMonth / 12));
     // qDebug() << value << "Month:" << currentMonth;
@@ -550,9 +639,12 @@ void MainWindow::resetMedianMap(){
     currentLocationSelectedMap.clear();
     ui->graphicsView->resetGraphicsView();
     ui->gv_chartview->setHidden(currentLocationSelectedMap.isEmpty());
+    if(screenNumber == 1){
+        emit(addClearButton(!currentLocationSelectedMap.empty()));
+    }
 }
 
-void MainWindow::showMedianMap(){
+void MainWindow::updateMedianMap(){
     ui->wg_color_map->setColorMapMinMax(QPair<double,double>(vizData->statsData[currentColNameShown].medianMin, vizData->statsData[currentColNameShown].medianMax));
     ui->graphicsView->updateRasterDataMedian(currentColNameShown, currentMonth);
     ui->graphicsView->update();
@@ -589,6 +681,8 @@ void MainWindow::showItemScreenNumber(int screenNumber){
         QStringListModel *model = new QStringListModel(this);
         model->setStringList(ascFileNameList);
         ui->cb_data_list->setModel(model);
+        ui->cb_data_list->setCurrentText(ascFileNameList.first());
+        showMap(ascFileNameList.first());
     }
     else if(screenNumber == 1){
         enableInputWidgets(screenNumber);
@@ -602,6 +696,8 @@ void MainWindow::showItemScreenNumber(int screenNumber){
         QStringList columnList = vizData->statsData.keys();
         model->setStringList(columnList);
         ui->cb_data_list->setModel(model);
+        ui->cb_data_list->setCurrentText(columnList.first());
+        showMap(columnList.first());
     }
 }
 
@@ -624,7 +720,7 @@ void MainWindow::saveStatsData(){
                                               ui->statusbar->showMessage("Saving IQR data to CSV complete!");
 
                                               resetMedianMap();
-                                              showMedianMap();
+                                              updateMedianMap();
                                               screenNumber = 1;
                                               enableInputWidgets(screenNumber);
                                               showItemScreenNumber(screenNumber);
@@ -700,7 +796,7 @@ void MainWindow::loadStatsData(QString tableName){
                                                     //     qDebug() << "[Load]Month 150 max loc 150: " << vizData->statsData[colName].medianMax;
                                                     // }
                                                     resetMedianMap();
-                                                    showMedianMap();
+                                                    updateMedianMap();
                                                     screenNumber = 1;
                                                     enableInputWidgets(screenNumber);
                                                     showItemScreenNumber(screenNumber);
@@ -727,18 +823,22 @@ void MainWindow::loadStatsData(QString tableName){
 
 void MainWindow::on_cb_data_list_currentTextChanged(const QString &name)
 {
+    showMap(name);
+}
+
+void MainWindow::showMap(QString name){
     if(screenNumber == 0){
-        int rasterIndex = ascFileList.indexOf(cbItemPathMap[name]);
         LoaderRaster *loader = new LoaderRaster();
-        loader->loadFileSingle(ascFileList[rasterIndex], vizData, nullptr, nullptr);
+        loader->loadFileSingle(cbItemPathMap[name], vizData, nullptr, nullptr);
         qDebug() << "ncols:" << vizData->rasterData->raster->NCOLS << " nrows:" << vizData->rasterData->raster->NROWS;
         ui->wg_color_map->setColorMapMinMax(QPair<double,double>(vizData->rasterData->dataMin, vizData->rasterData->dataMax));
         ui->graphicsView->updateRasterData();
+        showLastSquareValue();
     }
     if(screenNumber == 1){
         qDebug() << "Column name changed to:" << name;
         currentColNameShown = name;
-        showMedianMap();
+        updateMedianMap();
         showChart();
 
     }

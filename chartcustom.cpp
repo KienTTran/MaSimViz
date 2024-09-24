@@ -18,10 +18,10 @@ void ChartCustom::setVizData(VizData *vizData){
 
 void ChartCustom::setChartView(QChartView *chartView){
     this->chartView = chartView;
-    this->chartView->setRubberBand(QChartView::HorizontalRubberBand);
+    // this->chartView->setRubberBand(QChartView::HorizontalRubberBand);
 }
 
-void ChartCustom::plotDataMedianMultipleLocations(QString colName, QMap<int,QColor> locInfo, int currentMonth, QString title) {
+void ChartCustom::plotDataMedianMultipleLocations(QString colName, QMap<QPair<int,int>,QColor> locInfo, int currentMonth, QString title) {
     // Check if the median data is available
     if (vizData->statsData[colName].iqr[0].isEmpty()) {
         return;
@@ -66,12 +66,18 @@ void ChartCustom::plotDataMedianMultipleLocations(QString colName, QMap<int,QCol
     qreal minY = std::numeric_limits<qreal>::max();
     qreal maxY = std::numeric_limits<qreal>::lowest();
 
+    int locIndex = 0;
     // Create a different QLineSeries for each location and add it to the chart
-    for (int locIndex : locInfo.keys()) {
+    for (QPair<int,int> colrow : locInfo.keys()) {
         // Extract the location index and color
-        QColor color = locInfo[locIndex];
+        QColor color = locInfo[colrow];
 
-        QPair<int, int> colrow = vizData->rasterData->locationPair1DTo2D[locIndex];
+        if(vizData->isDistrictReporter){
+            locIndex = vizData->rasterData->locationPair2DTo1DDistrict[colrow];
+        }
+        else{
+            locIndex = vizData->rasterData->locationPair2DTo1D[colrow];
+        }
 
         // Create a QLineSeries object for the current location's median line
         QLineSeries* medianSeries = new QLineSeries();

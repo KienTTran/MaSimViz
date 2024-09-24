@@ -12,7 +12,6 @@ public:
     void loadDBList(const QStringList &dbPathList, const QString locationID, const QString monthID, const QString columns, const QString tableName, VizData *vizData, std::function<void(int)> progressCallback, std::function<void()> completionCallback) override;
 
 public:
-    void combinedRasterData(const QStringList &filePathList, VizData *vizData);
 };
 
 #endif // LOADERRASTER_H

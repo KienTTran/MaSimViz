@@ -227,8 +227,12 @@ void saveToCSVWorker(VizData *vizData,std::function<void(int)> progressCallback)
         // qDebug() << "[Save]month:" << month << count << "writeString size:" << test.size();
 
         out << writeString << "\n";
-        if(progressCallback)
-            progressCallback((month*100)/vizData->monthCountStartToEnd);
+        if(progressCallback){
+            int percent = (month*100)/vizData->monthCountStartToEnd;
+            if(percent % 5 == 0){
+                progressCallback(percent);
+            }
+        }
     }
 
     file.close();
@@ -335,8 +339,12 @@ int readFromCSVWorker(const QString& tableName, VizData *vizData,std::function<v
             }
         }
         // qDebug() << "[Load]Reading month:" << month << "count:" << count;
-        if(progressCallback)
-            progressCallback((month*100)/vizData->monthCountStartToEnd);
+        if(progressCallback){
+            int percent = (month*100)/vizData->monthCountStartToEnd;
+            if(percent % 5 == 0){
+                progressCallback(percent);
+            }
+        }
         month++;
     }
 

@@ -17,10 +17,10 @@ public:
         double dataMax = 0.0;
         QMap<int, QPair<int, int>> locationPair1DTo2D;
         QMap<QPair<int, int>, int> locationPair2DTo1D;
+        QMap<QPair<int, int>, int> locationPair2DTo1DDistrict;
     };
     //template struct
     struct StatsData{
-
         QList<QList<QList<double>>> data;        
         QList<QList<QList<double>>> iqr;
         QList<int> iqrRanges = {50, 5, 25, 75, 95};
@@ -76,7 +76,6 @@ public:
     VizData();
     QString currentDirectory;
     RasterData *rasterData;
-    RasterData *rasterDataAll;
     QDateTime simStartDate;
     QDateTime simCompDate;
     QDateTime simEndDate;
@@ -84,6 +83,7 @@ public:
     int monthCountCompToEnd;
     QMap<QString,StatsData> statsData;
     SQLData sqlData;
+    bool isDistrictReporter = false;
 };
 
 #endif // VIZDATA_H

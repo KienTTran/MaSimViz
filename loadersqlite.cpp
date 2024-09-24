@@ -77,7 +77,6 @@ void LoaderSQLite::loadFileSingle(const QString &filePath, VizData *vizData, std
 }
 
 
-
 void LoaderSQLite::loadFileList(const QStringList &filePathList, VizData *vizData, std::function<void(int)> progressCallback, std::function<void()> completionCallback) {
     // Load a list of files
     qDebug() << "Error: Not implemented loadFileList for LoaderSQLite!";

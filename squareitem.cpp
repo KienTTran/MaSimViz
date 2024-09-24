@@ -6,14 +6,19 @@
 SquareItem::SquareItem(QGraphicsItem *parent) : QGraphicsRectItem(parent){
 }
 
-SquareItem::SquareItem(int col, int row, QGraphicsItem *parent) : QGraphicsRectItem(parent){
+SquareItem::SquareItem(int col, int row, int district, QGraphicsItem *parent) : QGraphicsRectItem(parent){
     squareSize = 25;
     cellSize = 30;
+    setDistrict(district);
     setRect(col*cellSize, row*cellSize, squareSize, squareSize);
     squareColRow = QPoint(col, row);
     isSelected = false;
     setSelection(isSelected);
     brush = QBrush(Qt::GlobalColor::gray);
+}
+
+void SquareItem::setDistrict(int district){
+    this->district = district;
 }
 
 void SquareItem::setSelection(bool selected){
