@@ -639,9 +639,7 @@ void MainWindow::resetMedianMap(){
     currentLocationSelectedMap.clear();
     ui->graphicsView->resetGraphicsView();
     ui->gv_chartview->setHidden(currentLocationSelectedMap.isEmpty());
-    if(screenNumber == 1){
-        emit(addClearButton(!currentLocationSelectedMap.empty()));
-    }
+    emit(addClearButton(!currentLocationSelectedMap.empty()));
 }
 
 void MainWindow::updateMedianMap(){
@@ -683,6 +681,7 @@ void MainWindow::showItemScreenNumber(int screenNumber){
         ui->cb_data_list->setModel(model);
         ui->cb_data_list->setCurrentText(ascFileNameList.first());
         showMap(ascFileNameList.first());
+        vizData->isDistrictReporter = false;
     }
     else if(screenNumber == 1){
         enableInputWidgets(screenNumber);

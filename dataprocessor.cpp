@@ -283,19 +283,19 @@ int readFromCSVWorker(const QString& tableName, VizData *vizData,std::function<v
 
     vizData->sqlData.tableColumnsMap[tableName] = colNames.join(",").chopped(1);
 
-    if(colNames.size() != vizData->statsData.size()){
-        qWarning("Column number does not match.");
-        return 2;
-    }
+    // if(colNames.size() != vizData->statsData.size()){
+    //     qWarning("Column number does not match.");
+    //     return 2;
+    // }
 
-    if(colNames.size()*vizData->rasterData->nLocations*5 != header.size()){
-        qWarning("Header size does not match config location and columns.");
-        return 3;
-    }
+    // if(colNames.size()*vizData->rasterData->nLocations*5 != header.size()){
+    //     qWarning("Header size does not match config location and columns.");
+    //     return 3;
+    // }
 
     bool allMatch = true;
-    for(const QString col: colNames){
-        if(!vizData->statsData.contains(col)){
+    for(const QString col: vizData->statsData.keys()){
+        if(!colNames.contains(col)){
             allMatch = false;
             qWarning("Column names do not match selected columns.");
             return 4;
