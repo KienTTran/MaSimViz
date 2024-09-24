@@ -92,7 +92,9 @@ void GraphicsViewCustom::clearSelection()
 }
 
 void GraphicsViewCustom::showClearButton(bool show){
-    clearButton->setHidden(!show);
+    if(clearButton){
+        clearButton->setHidden(!show);
+    }
 }
 
 void GraphicsViewCustom::mouseMoveEvent(QMouseEvent *event) {
