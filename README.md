@@ -2,7 +2,7 @@
 
 **MaSimViz** is a cross-platform and powerful tool designed to visualize the output of Malaria simulations, providing the ability to playback event logs and display various simulation data. It automatically parses input files, displays raster maps, and supports interactive plots of simulation data for deeper analysis.
 
-![](https://github.com/KienTTran/MaSimViz/blob/master/ABMGPU.gif)
+![](https://github.com/KienTTran/MaSimViz/blob/master/masimviz.gif)
 
 ## Features
 
