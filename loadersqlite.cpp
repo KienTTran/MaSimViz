@@ -77,15 +77,14 @@ void LoaderSQLite::loadFileSingle(const QString &filePath, VizData *vizData, std
 }
 
 
-
-void LoaderSQLite::loadFileList(const QStringList &dbPathList, VizData *vizData, std::function<void(int)> progressCallback, std::function<void()> completionCallback) {
+void LoaderSQLite::loadFileList(const QStringList &filePathList, VizData *vizData, std::function<void(int)> progressCallback, std::function<void()> completionCallback) {
     // Load a list of files
     qDebug() << "Error: Not implemented loadFileList for LoaderSQLite!";
 }
 
 void processDatabase(const QString &dbPath, int dbIndex, const QString &locationID, const QString &monthID,
                      const QStringList &columnList, const QString &databaseName, VizData *vizData) {
-    int numLocations = vizData->rasterData->locationRaster;
+    int numLocations = vizData->rasterData->nLocations;
     int numMonths = vizData->monthCountStartToEnd;
 
     QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", QString::number(dbIndex));
@@ -116,7 +115,7 @@ void processDatabase(const QString &dbPath, int dbIndex, const QString &location
         if (loc >= 0 && loc < numLocations && month >= 0 && month < numMonths) {
             for (int colIndex = 0; colIndex < columnList.size(); ++colIndex) {
                 double value = query.value(2 + colIndex).toDouble();
-                vizData->statsData[colIndex].data[dbIndex][loc][month] = value;
+                vizData->statsData[columnList[colIndex]].data[dbIndex][loc][month] = value;
             }
         }
     }
@@ -143,10 +142,10 @@ void LoaderSQLite::loadDBList(const QStringList &dbPathList, const QString locat
         return;
     }
     else{
-        qDebug() << "Columns: " << columns;
-        qDebug() << "Table: " << tableName;
-        qDebug() << "Location ID: " << locationID;
-        qDebug() << "Month ID: " << monthID;
+        qDebug() << "[LoadDBList]Columns: " << columns;
+        qDebug() << "[LoadDBList]Table: " << tableName;
+        qDebug() << "[LoadDBList]Location ID: " << locationID;
+        qDebug() << "[LoadDBList]Month ID: " << monthID;
     }
     QStringList columnList = QStringList();
     if(columns.contains(',')){
@@ -162,12 +161,12 @@ void LoaderSQLite::loadDBList(const QStringList &dbPathList, const QString locat
         VizData::StatsData stats;
         stats.data.resize(numDatabases);
         for (int dbIndex = 0; dbIndex < numDatabases; ++dbIndex) {
-            stats.data[dbIndex].resize(vizData->rasterData->locationRaster);
-            for (int locIndex = 0; locIndex < vizData->rasterData->locationRaster; ++locIndex) {
+            stats.data[dbIndex].resize(vizData->rasterData->nLocations);
+            for (int locIndex = 0; locIndex < vizData->rasterData->nLocations; ++locIndex) {
                 stats.data[dbIndex][locIndex].resize(vizData->monthCountStartToEnd);
             }
         }
-        vizData->statsData.append(stats);
+        vizData->statsData[columnList[i]] = stats;
     }
 
     // Progress tracking

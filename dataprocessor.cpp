@@ -9,6 +9,12 @@
 #include <functional> // For std::function
 #include <QDebug> // For logging
 
+#include <QFile>
+#include <QTextStream>
+#include <QMap>
+#include <QList>
+#include <QStringList>
+
 #include "vizdata.h"
 
 // Helper function to compute percentiles
@@ -38,24 +44,20 @@ void updateGlobalMinMax(double localValue, double& globalMin, double& globalMax)
 
 // Actual work function to run in a separate thread for all IQRs/medians
 void processStatsDataWorker(VizData* vizData, std::function<void(int)> progressCallback) {
-    int nDatabases = vizData->statsData[0].data.size();  // Number of databases
-    int nLocations = vizData->rasterData->locationRaster; // Number of locations
+    int nDatabases = vizData->statsData[vizData->statsData.keys()[0]].data.size();  // Number of databases
+    int nLocations = vizData->rasterData->nLocations; // Number of locations
     int nMonths = vizData->monthCountStartToEnd;  // Number of months
-    int totalTasks = vizData->statsData.size() * nMonths * nLocations * 5; // 5 threads for each statData element (IQRs + median)
-    int progress = 0;
+    long totalNumbers = vizData->statsData.keys().size() * nMonths * nLocations * vizData->statsData[vizData->statsData.keys()[0]].iqrRanges.size();
+    long progress = 0;
 
     QVector<QFuture<void>> futures; // Store futures to wait for all threads to finish
 
     // Iterate over each statData
-    for (int s = 0; s < vizData->statsData.size(); ++s) {
-        VizData::StatsData& stats = vizData->statsData[s];
+    for (int colNameIndex = 0; colNameIndex < vizData->statsData.keys().size(); colNameIndex++) {
+        VizData::StatsData& stats = vizData->statsData[vizData->statsData.keys()[colNameIndex]];
 
         // Initialize the dimensions for median, IQR, min, and max
-        stats.median.resize(nMonths);
-        stats.iqr5.resize(nMonths);
-        stats.iqr25.resize(nMonths);
-        stats.iqr75.resize(nMonths);
-        stats.iqr95.resize(nMonths);
+        stats.iqr = QList<QList<QList<double>>>(stats.iqrRanges.size(), QList<QList<double>>(nMonths, QList<double>(nLocations, 0.0)));
 
         double globalMin = std::numeric_limits<double>::max();
         double globalMax = std::numeric_limits<double>::lowest();
@@ -64,30 +66,23 @@ void processStatsDataWorker(VizData* vizData, std::function<void(int)> progressC
 
         // Process each month and each location
         for (int month = 0; month < nMonths; ++month) {
-            stats.median[month].resize(nLocations);
-            stats.iqr5[month].resize(nLocations);
-            stats.iqr25[month].resize(nLocations);
-            stats.iqr75[month].resize(nLocations);
-            stats.iqr95[month].resize(nLocations);
-
             for (int loc = 0; loc < nLocations; ++loc) {
                 QList<double> values;
                 for (int db = 0; db < nDatabases; ++db) {
                     values.append(stats.data[db][loc][month]);
                 }
 
-                // Run percentile calculations for all IQRs and median in parallel using 5 threads
-                futures.append(QtConcurrent::run(calculatePercentiles, std::ref(stats), values, month, loc, 50, std::ref(stats.median)));
-                futures.append(QtConcurrent::run(calculatePercentiles, std::ref(stats), values, month, loc, 5, std::ref(stats.iqr5)));
-                futures.append(QtConcurrent::run(calculatePercentiles, std::ref(stats), values, month, loc, 25, std::ref(stats.iqr25)));
-                futures.append(QtConcurrent::run(calculatePercentiles, std::ref(stats), values, month, loc, 75, std::ref(stats.iqr75)));
-                futures.append(QtConcurrent::run(calculatePercentiles, std::ref(stats), values, month, loc, 95, std::ref(stats.iqr95)));
+                for(int i = 0; i < stats.iqrRanges.size(); i++){
+                    // futures.append(QtConcurrent::run(calculatePercentiles, std::ref(stats), values, month, loc, stats.iqrRanges[i], std::ref(stats.iqr[i])));
+                    calculatePercentiles(stats, values, month, loc, stats.iqrRanges[i], stats.iqr[i]);
+                }
 
-                // Increment progress and call the progress callback
-                progress += 5;  // Increment by 5 because we launched 5 tasks
+                int progressPercentage = (progress * 100) / (totalNumbers);
+                // qDebug() << "[DataProcessor] Progress:" << progress << "/" << vizData->statsData.keys().size() * nMonths * nLocations * stats.iqrRanges.size();
+                progress += stats.iqrRanges.size();
+
                 if (progressCallback) {
-                    int percentProgress = (progress * 100) / totalTasks;
-                    progressCallback(percentProgress);  // Report percentage progress, normalized to 0-100
+                    progressCallback(progressPercentage);
                 }
 
                 // Update global min/max values from data
@@ -105,7 +100,7 @@ void processStatsDataWorker(VizData* vizData, std::function<void(int)> progressC
         // After all percentile calculations are done, update the global median min/max values
         for (int month = 0; month < nMonths; ++month) {
             for (int loc = 0; loc < nLocations; ++loc) {
-                updateGlobalMinMax(stats.median[month][loc], globalMedianMin, globalMedianMax);
+                updateGlobalMinMax(stats.iqr[0][month][loc], globalMedianMin, globalMedianMax);
             }
         }
 
@@ -137,3 +132,244 @@ void DataProcessor::processStatsData(VizData* vizData, std::function<void(int)> 
     // Set the future to the watcher so it can monitor the progress
     watcher->setFuture(future);
 }
+
+void saveToCSVWorker(VizData *vizData,std::function<void(int)> progressCallback) {
+    QString fileName = QDir(vizData->currentDirectory).filePath("MaSimViz_"+vizData->sqlData.tableColumnsMap.keys().last() + ".dat");
+    QFile file(fileName);
+
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        qWarning("Unable to open file for writing.");
+        return;
+    }
+
+    QTextStream out(&file);
+
+    QString writeString = "";
+
+    qDebug() << "[Save]Selected columns:" << vizData->sqlData.tableColumnsMap.values().last();
+    qDebug() << "[Save]statsData columns:" << vizData->statsData.keys();
+    qDebug() << "[Save]raster nLocation:" << vizData->rasterData->nLocations;
+
+    //sort the columns based on the column name
+    QStringList colNamesSorted = vizData->statsData.keys();
+    colNamesSorted.sort();
+
+    writeString = "";
+    for (const QString col : colNamesSorted) {
+        writeString += col + ",";
+    }
+    writeString.chop(1);
+    out << writeString << "\n";
+
+    qDebug() << "[Save]Columns:" << writeString;
+
+    writeString = "";
+    for (const QString col : colNamesSorted){
+        writeString += QString::number(vizData->statsData[col].medianMin) + ",";
+    }
+    writeString.chop(1);
+    out << writeString << "\n";
+
+    qDebug() << "[Save]Stats min:" << writeString;
+
+    writeString = "";
+    for (const QString col : colNamesSorted){
+        writeString += QString::number(vizData->statsData[col].medianMax) + ",";
+    }
+    writeString.chop(1);
+    out << writeString << "\n";
+
+    qDebug() << "[Save]Stats max:" << writeString;
+
+    // Prepare header
+    writeString = "";
+    for (const QString col : colNamesSorted) {
+        for (int loc = 0; loc < vizData->rasterData->nLocations; loc++) {
+            writeString += QString("%1_%2_median").arg(col).arg(loc) + ",";
+            writeString += QString("%1_%2_iqr25").arg(col).arg(loc) + ",";
+            writeString += QString("%1_%2_iqr75").arg(col).arg(loc) + ",";
+            writeString += QString("%1_%2_iqr5").arg(col).arg(loc) + ",";
+            writeString += QString("%1_%2_iqr95").arg(col).arg(loc) + ",";
+        }
+    }
+    writeString.chop(1);
+    out << writeString << "\n";
+
+    writeString = "";
+    // Write data
+    for (int month = 0; month < vizData->monthCountStartToEnd; month++) {
+        writeString = "";
+        int count = 0;
+        for (int colNameIndex = 0; colNameIndex < colNamesSorted.size(); colNameIndex++) {
+            for (int loc = 0; loc < vizData->rasterData->nLocations; loc++) {
+                for(int i = 0; i < 5; i++){
+                    int index = colNameIndex * vizData->rasterData->nLocations * 5 + loc * 5 + i;
+                    writeString += QString::number(vizData->statsData[colNamesSorted[colNameIndex]].iqr[i][month][loc]) +",";
+                    if((month == 0 || month == 1) && i == 0){
+                        if(count == vizData->rasterData->nLocations-1){
+                            qDebug() << "[Save]Last:" << count << month << colNamesSorted[colNameIndex] << loc << index << vizData->statsData[colNamesSorted[colNameIndex]].iqr[4][month][loc];
+                        }
+                        if(count == vizData->rasterData->nLocations*2-1){
+                            qDebug() << "[Save]Last:" << count << month << colNamesSorted[colNameIndex] << loc << index << vizData->statsData[colNamesSorted[colNameIndex]].iqr[4][month][loc];
+                        }
+                        if(count == vizData->rasterData->nLocations*3-1){
+                            qDebug() << "[Save]Last:" << count << month << colNamesSorted[colNameIndex] << loc << index << vizData->statsData[colNamesSorted[colNameIndex]].iqr[4][month][loc];
+                        }
+                    }
+                }
+                count++;
+            }
+        }
+        // qDebug() << "[Save]Writing month:" << month << "count:" << count;
+        writeString.chop(1);
+
+        // QStringList test = writeString.split(",");
+        // qDebug() << "[Save]month:" << month << count << "writeString size:" << test.size();
+
+        out << writeString << "\n";
+        if(progressCallback){
+            int percent = (month*100)/vizData->monthCountStartToEnd;
+            if(percent % 5 == 0){
+                progressCallback(percent);
+            }
+        }
+    }
+
+    file.close();
+}
+
+// Function to save VizData to CSV
+void DataProcessor::saveStatsDataToCSV(VizData* vizData, std::function<void(int)> progressCallback, std::function<void()> completionCallback) {
+    // Use QFuture and QFutureWatcher to run the function in a separate thread
+    QFutureWatcher<void> *watcher = new QFutureWatcher<void>();
+
+    // Connect to signals to track progress and completion
+    QObject::connect(watcher, &QFutureWatcher<void>::finished, [=]() {
+        if (completionCallback) {
+            completionCallback();
+        }
+        watcher->deleteLater();  // Clean up the watcher
+    });
+
+    // Run the actual work in a separate thread
+    QFuture<void> future = QtConcurrent::run(saveToCSVWorker, vizData, progressCallback);
+
+    // Set the future to the watcher so it can monitor the progress
+    watcher->setFuture(future);
+}
+
+// Function to read VizData from CSV
+int readFromCSVWorker(const QString& tableName, VizData *vizData,std::function<void(int)> progressCallback) {
+    QString fileName = QDir(vizData->currentDirectory).filePath("MaSimViz_"+vizData->sqlData.tableColumnsMap.keys().last() + ".dat");
+    QFile file(fileName);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text) | !file.exists()) {
+        qWarning("Unable to open file for reading or file does not exist.");
+        return 1;
+    }
+
+    QTextStream in(&file);
+    QStringList colNames = in.readLine().split(",");
+    QStringList statsMin = in.readLine().split(",");
+    QStringList statsMax = in.readLine().split(",");
+    QStringList header = in.readLine().split(",");
+
+    colNames.sort();
+
+    qDebug() << "[Load]Selected columns:" << vizData->sqlData.tableColumnsMap.values();
+    qDebug() << "[Load]Reading data from CSV file:" << fileName;
+    qDebug() << "[Load]Column names:" << colNames;
+    qDebug() << "[Load]Stats min:" << statsMin;
+    qDebug() << "[Load]Stats max:" << statsMax;
+
+    vizData->sqlData.tableColumnsMap[tableName] = colNames.join(",").chopped(1);
+
+    if(colNames.size() != vizData->statsData.size()){
+        qWarning("Column number does not match.");
+        return 2;
+    }
+
+    if(colNames.size()*vizData->rasterData->nLocations*5 != header.size()){
+        qWarning("Header size does not match config location and columns.");
+        return 3;
+    }
+
+    bool allMatch = true;
+    for(const QString col: colNames){
+        if(!vizData->statsData.contains(col)){
+            allMatch = false;
+            qWarning("Column names do not match selected columns.");
+            return 4;
+        }
+    }
+
+
+    // Clear the existing data
+    for(const QString col : colNames){
+        vizData->statsData[col].medianMin = statsMin[colNames.indexOf(col)].toDouble();
+        vizData->statsData[col].medianMax = statsMax[colNames.indexOf(col)].toDouble();
+        vizData->statsData[col].iqr = QList<QList<QList<double>>>(vizData->statsData[col].iqrRanges.size(), QList<QList<double>>(vizData->monthCountStartToEnd, QList<double>(vizData->rasterData->nLocations, 0.0)));
+    }
+
+    int month = 0;
+    while(!in.atEnd()){
+        QString readLine = in.readLine();
+        QStringList line = readLine.split(",");
+        // qDebug() << "[Load]month:" << month << "line length:" << line.size();
+        int count = 0;
+        for(int colNameIndex = 0; colNameIndex < colNames.size(); colNameIndex++){
+            for (int loc = 0; loc < vizData->rasterData->nLocations; loc++) {
+                int iqrSize =  vizData->statsData[colNames[colNameIndex]].iqrRanges.size();
+                for(int i = 0; i < iqrSize; i++){
+                    int index = colNameIndex * vizData->rasterData->nLocations *  iqrSize + loc *  iqrSize + i;
+                    // qDebug() << "month:" << month << colNames[colNameIndex] << "loc:" << loc << "index:" << index;
+                    vizData->statsData[colNames[colNameIndex]].iqr[i][month][loc] = line[index].toDouble();
+                    if((month == 0 || month == 1) && i == 0){
+                        if(count == vizData->rasterData->nLocations-1){
+                            qDebug() << "[Load]Last:" << count << month << colNames[colNameIndex] << loc << index << line[index].toDouble();
+                        }
+                        if(count == vizData->rasterData->nLocations*2-1){
+                            qDebug() << "[Load]Last:" << count << month << colNames[colNameIndex] << loc << index << line[index].toDouble();
+                        }
+                        if(count == vizData->rasterData->nLocations*3-1){
+                            qDebug() << "[Load]Last:" << count << month << colNames[colNameIndex] << loc << index << line[index].toDouble();
+                        }
+                    }
+                }
+                count++;
+            }
+        }
+        // qDebug() << "[Load]Reading month:" << month << "count:" << count;
+        if(progressCallback){
+            int percent = (month*100)/vizData->monthCountStartToEnd;
+            if(percent % 5 == 0){
+                progressCallback(percent);
+            }
+        }
+        month++;
+    }
+
+    file.close();
+    return 0;
+}
+
+void DataProcessor::loadStatsDataFromCSV(const QString& tableName, VizData *vizData, std::function<void(int)> progressCallback, std::function<void(int)> completionCallback){
+    // Use QFuture and QFutureWatcher to run the function in a separate thread
+    QFutureWatcher<int> *watcher = new QFutureWatcher<int>();
+
+    // Run the actual work in a separate thread
+    QFuture<int> future = QtConcurrent::run(readFromCSVWorker, tableName, vizData, progressCallback);
+
+    // Set the future to the watcher so it can monitor the progress
+    watcher->setFuture(future);
+
+
+    // Connect to signals to track progress and completion
+    QObject::connect(watcher, &QFutureWatcher<void>::finished, [=]() {
+        if (completionCallback) {
+            completionCallback(future.result());
+        }
+        watcher->deleteLater();  // Clean up the watcher
+    });
+}
+
+

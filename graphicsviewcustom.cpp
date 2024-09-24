@@ -1,33 +1,98 @@
-    #include "graphicsviewcustom.h"
+#include "graphicsviewcustom.h"
 
 #include <QGraphicsView>
 #include <QMouseEvent>
 #include <QWheelEvent>
 #include <QScrollBar>
 
+#include "squareitem.h"
+#include "mainwindow.h"
+
 GraphicsViewCustom::GraphicsViewCustom(QWidget *parent) {
     isPanning = false;
     lastMousePos = QPoint();
     currentZoomLevel = 1.0;
     currentZoomFactor = 1.0;
+    cellSize = 30;
+    vizData = new VizData();
+    squareItemList = QVector<QVector<SquareItem*>>();
+
     setRenderHint(QPainter::Antialiasing, true);  // Optional: improve rendering quality
     setDragMode(QGraphicsView::NoDrag);  // Disable default drag mode
     setInteractive(true);  // Ensure interactivity for panning and zooming
     setViewportUpdateMode(QGraphicsView::FullViewportUpdate);  // Force full updates on view changes
     setTransformationAnchor(QGraphicsView::AnchorUnderMouse);  // Ensure zooming anchors to the mouse position
     //Set background color to grey
-    setBackgroundBrush(QBrush(QColor(200, 200, 200)));
+    setBackgroundBrush(QBrush(QColor(0, 0, 0)));
 }
 
+void GraphicsViewCustom::setVizData(VizData *vizData){
+    this->vizData = vizData;
+}
+
+void GraphicsViewCustom::initSquareItems(){
+    qDebug() << "Initializing square items" << this->vizData->rasterData->raster->NCOLS << " " << this->vizData->rasterData->raster->NROWS;
+    squareItemList = QVector<QVector<SquareItem*>>(vizData->rasterData->raster->NCOLS,
+                                                    QVector<SquareItem*>(vizData->rasterData->raster->NROWS,
+                                                                          new SquareItem()));
+}
+
+void GraphicsViewCustom::initSquareScene(){
+
+    scene()->setBackgroundBrush(Qt::black);
+
+    scene()->clear();
+
+    for(int loc = 0; loc < vizData->rasterData->nLocations; loc++){
+        int row = vizData->rasterData->locationPair1DTo2D[loc].first;
+        int col = vizData->rasterData->locationPair1DTo2D[loc].second;
+
+        SquareItem *square = new SquareItem(col,row, -1);
+        square->setBrush(QColor::fromRgbF(0.1,0.1,0.1));
+        QObject::connect(square, &SquareItem::squareClicked, this, &GraphicsViewCustom::onSquareClicked);
+        squareItemList[col][row] = square;
+
+        scene()->addItem(square);
+    }
+    scene()->update();
+}
+
+void GraphicsViewCustom::setSceneCustom(QGraphicsScene *scene){
+    setScene(scene);
+}
+
+void GraphicsViewCustom::resizeEvent(QResizeEvent *event) {
+    if(clearButton){
+        clearButton->setGeometry(this->width() - clearButton->width() - 10, 10, 80, 40);
+    }
+    QGraphicsView::resizeEvent(event);
+}
 
 // Mouse panning
 void GraphicsViewCustom::mousePressEvent(QMouseEvent *event) {
-    if (event->button() == Qt::LeftButton) {
+    if (event->button() == Qt::RightButton) {
         isPanning = true;
-        lastMousePos = event->pos();
-        setCursor(Qt::ClosedHandCursor);  // Change cursor when panning
+        lastMousePos = event->pos(); // Change cursor when panning
     }
     QGraphicsView::mousePressEvent(event);
+}
+
+void GraphicsViewCustom::clearSelection()
+{
+    qDebug() << "Clearing selection";
+    if (scene()) {
+        for(int loc = 0; loc < vizData->rasterData->nLocations; loc++){
+            int row = vizData->rasterData->locationPair1DTo2D[loc].first;
+            int col = vizData->rasterData->locationPair1DTo2D[loc].second;
+            squareItemList[col][row]->setSelection(false);
+        }
+        clearButton->hide();
+        emit squareClickedOnScene(QPoint(-1,-1), QColor(0,0,0));
+    }
+}
+
+void GraphicsViewCustom::showClearButton(bool show){
+    clearButton->setHidden(!show);
 }
 
 void GraphicsViewCustom::mouseMoveEvent(QMouseEvent *event) {
@@ -46,7 +111,7 @@ void GraphicsViewCustom::mouseMoveEvent(QMouseEvent *event) {
 }
 
 void GraphicsViewCustom::mouseReleaseEvent(QMouseEvent *event) {
-    if (event->button() == Qt::LeftButton) {
+    if (event->button() == Qt::RightButton) {
         isPanning = false;
         setCursor(Qt::ArrowCursor);  // Reset cursor
     }
@@ -54,26 +119,36 @@ void GraphicsViewCustom::mouseReleaseEvent(QMouseEvent *event) {
 }
 
 // Zooming with mouse wheel
-// void GraphicsViewCustom::wheelEvent(QWheelEvent *event) {
-//     const double zoomFactor = 1.01;  // Smaller zoom factor for smooth zoom
-//     const int maxZoomLevel = 500;  // Maximum zoom level
-//     const int minZoomLevel = -500;  // Minimum zoom level
-//     isPanning = false;  // Disable panning while zooming
-//     if (event->angleDelta().y() > 0) {
-//         // Zoom in
-//         if (currentZoomLevel < maxZoomLevel) {
-//             currentZoomLevel++;
-//             scale(zoomFactor, zoomFactor);
-//         }
-//     } else {
-//         // Zoom out
-//         if (currentZoomLevel > minZoomLevel) {
-//             currentZoomLevel--;
-//             scale(1.0 / zoomFactor, 1.0 / zoomFactor);
-//         }
-//     }
-//     QGraphicsView::wheelEvent(event);
-// }
+void GraphicsViewCustom::wheelEvent(QWheelEvent *event) {
+
+    // your functionality, for example:
+    // if ctrl pressed, use original functionality
+    if (event->modifiers() & Qt::ControlModifier)
+    {
+        QGraphicsView::wheelEvent(event);
+    }
+    // otherwise, do yours
+    else
+    {
+        const double zoomFactor = 1.05;  // Smaller zoom factor for smooth zoom
+        const int maxZoomLevel = 500;  // Maximum zoom level
+        const int minZoomLevel = -500;  // Minimum zoom level
+        isPanning = false;  // Disable panning while zooming
+        if (event->angleDelta().y() > 0) {
+            // Zoom in
+            if (currentZoomLevel < maxZoomLevel) {
+                currentZoomLevel++;
+                scale(zoomFactor, zoomFactor);
+            }
+        } else {
+            // Zoom out
+            if (currentZoomLevel > minZoomLevel) {
+                currentZoomLevel--;
+                scale(1.0 / zoomFactor, 1.0 / zoomFactor);
+            }
+        }
+    }
+}
 
 void GraphicsViewCustom::adjustZoomLevel(int zoomLevel){
     // Map slider value (0-100) to a zoom factor between 0.5 (200% zoom out) and 2.0 (200% zoom in)
@@ -85,56 +160,110 @@ void GraphicsViewCustom::adjustZoomLevel(int zoomLevel){
     setTransform(transform);  // Set the new transformation
 }
 
+void GraphicsViewCustom::onSquareClicked(const QPoint &pos, const QColor &color) {
+    qDebug() << "[Graphics] Square clicked at: " << pos << "Color: " << color;
+
+    // Check if a square is selected
+    if (!clearButton) {
+        clearButton = new QPushButton("Clear", this);
+        clearButton->setGeometry(this->width() - clearButton->width() - 10, 10, 80, 40);
+        //make button white background and white text
+        clearButton->setStyleSheet("background-color: white");
+        clearButton->setStyleSheet("color: white");
+        connect(clearButton, &QPushButton::clicked, this, &GraphicsViewCustom::clearSelection);
+        clearButton->show();
+    }
+
+    emit squareClickedOnScene(pos,color);
+}
+
+void GraphicsViewCustom::resetGraphicsView(){
+    initSquareScene();
+}
 
 // Function to display .asc data on QGraphicsView as dots
-void GraphicsViewCustom::displayAscData(QGraphicsScene *scene, const QList<QList<double>> &gridData, double cellSize) {
-    int rows = gridData.size();
-    int cols = gridData.isEmpty() ? 0 : gridData[0].size();
+void GraphicsViewCustom::updateRasterData() {
 
-    //Find min and max value
-    double minValue = 0;
-    double maxValue = 0;
-    for (int i = 0; i < rows; ++i) {
-        for (int j = 0; j < cols; ++j) {
-            double value = gridData[i][j];
-            if (value != -9999) {  // Assuming -9999 is the NODATA_value
-                if(value < minValue){
-                    minValue = value;
-                }
-                if(value > maxValue){
-                    maxValue = value;
-                }
-            }
-        }
+    if(squareItemList.isEmpty()){
+        initSquareItems();
+        initSquareScene();
     }
 
-    //segment the value range to 6 colors: green, blue, yellow, orange, red, purple
-    double segment = 6;
-    qDebug() << "Min value: " << minValue << " Max value: " << maxValue << " Segment: " << segment;
-    QColor colors[] = {QColor(0, 255, 0), QColor(0, 0, 255), QColor(255, 255, 0), QColor(255, 165, 0), QColor(255, 0, 0), QColor(128, 0, 128)};
+    for(int loc = 0; loc < vizData->rasterData->nLocations; loc++){
+        int row = vizData->rasterData->locationPair1DTo2D[loc].first;
+        int col = vizData->rasterData->locationPair1DTo2D[loc].second;
+        double value = vizData->rasterData->raster->data[row][col];
 
-    // Loop through the grid data and draw each value as a dot
-    for (int i = 0; i < rows; ++i) {
-        for (int j = 0; j < cols; ++j) {
-            double value = gridData[i][j];
+        // Normalize the value to range [0, 1] based on min and max values
+        float normalizedValue = (static_cast<float>(value) - vizData->rasterData->dataMin) / (vizData->rasterData->dataMax - vizData->rasterData->dataMin);
 
-            if (value != -9999) {  // Assuming -9999 is the NODATA_value
-                // Scale the dot size (you can adjust the scaling factor)
-                double dotSize = 3.0;
-                double dotLineWidth = 0.5;
+        // Determine which color stop range this value falls into
+        int nColorSteps = vizData->colorMap.size() - 1;
+        float stepSize = 1.0f / nColorSteps;
+        int lowerStep = qFloor(normalizedValue / stepSize);
+        float factor = (normalizedValue - lowerStep * stepSize) / stepSize;
 
-                // Create an ellipse item for the dot
-                QGraphicsEllipseItem *dot = new QGraphicsEllipseItem(j * cellSize, i * cellSize, dotSize, dotSize);
-                // Set the color based on the cell value
-                // int colorIndex = (value - minValue) / segment;
-                // dot->setBrush(QBrush(colors[colorIndex]));
-                dot->setBrush(Qt::white);
-                //set line width
-                dot->setPen(QPen(Qt::black, dotLineWidth));
-
-                // Add the dot to the scene
-                scene->addItem(dot);
-            }
+        // Ensure we don't go out of bounds
+        if (lowerStep >= nColorSteps) {
+            lowerStep = nColorSteps - 1;
+            factor = 1.0f;
         }
+
+        // Interpolate between the two adjacent colors
+        QVector3D color = vizData->interpolate(lowerStep, factor);
+
+        squareItemList[col][row]->setBrushCustom(QBrush(QColor::fromRgbF(color.x(), color.y(), color.z())));
     }
+    scene()->update();
 }
+
+void GraphicsViewCustom::updateRasterDataMedian(const QString colName, int month) {
+
+    if(squareItemList.isEmpty()){
+        initSquareItems();
+        initSquareScene();
+    }
+
+    if(colName.isEmpty()){
+        qDebug() << "[GraphicsViewCustom] Column name is empty!";
+        return;
+    }
+
+    int row = -1;
+    int col = -1;
+    double value = 0.0;
+    for(int loc = 0; loc < vizData->rasterData->nLocations; loc++){
+        row = vizData->rasterData->locationPair1DTo2D[loc].first;
+        col = vizData->rasterData->locationPair1DTo2D[loc].second;
+        if(vizData->isDistrictReporter){
+            int dictrictLoc = vizData->rasterData->locationPair2DTo1DDistrict[QPair<int,int>(row,col)];
+            value = vizData->statsData[colName].iqr[0][month][dictrictLoc];
+        }
+        else{
+            value = vizData->statsData[colName].iqr[0][month][loc];
+        }
+
+        // Normalize the value to range [0, 1] based on min and max values
+        float normalizedValue = (static_cast<float>(value) - vizData->statsData[colName].medianMin) / (vizData->statsData[colName].medianMax - vizData->statsData[colName].medianMin);
+        // float normalizedValue = (static_cast<float>(value) - rasterData->dataMin) / (rasterData->dataMax - rasterData->dataMin);
+
+        // Determine which color stop range this value falls into
+        int nColorSteps = vizData->colorMap.size() - 1;
+        float stepSize = 1.0f / nColorSteps;
+        int lowerStep = qFloor(normalizedValue / stepSize);
+        float factor = (normalizedValue - lowerStep * stepSize) / stepSize;
+
+        // Ensure we don't go out of bounds
+        if (lowerStep >= nColorSteps) {
+            lowerStep = nColorSteps - 1;
+            factor = 1.0f;
+        }
+
+        // Interpolate between the two adjacent colors
+        QVector3D color = vizData->interpolate(lowerStep, factor);
+
+        squareItemList[col][row]->setBrushCustom(QBrush(QColor::fromRgbF(color.x(), color.y(), color.z())));
+    }
+    scene()->update();
+}
+

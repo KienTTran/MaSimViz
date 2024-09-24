@@ -4,6 +4,7 @@
 #include <QFile>
 #include <QTextStream>
 #include <QDebug>
+#include "ascfile.h"
 
 LoaderRaster::LoaderRaster() {}
 
@@ -14,58 +15,50 @@ void LoaderRaster::loadFileSingle(const QString &filePath, VizData *vizData, std
         return;
     }
 
-    QFile file(filePath);
+    vizData->rasterData->raster = AscFileManager::read(filePath.toStdString());
 
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        qDebug() << "Error: Cannot open file!";
-        return;
-    }
+    double min = std::numeric_limits<double>::max();
+    double max = -std::numeric_limits<double>::max();
 
-    QTextStream in(&file);
-    QString line;
-
-    // Clear the existing raster data
-    vizData->rasterData->values.clear();
-
-    // Read the header information
-    while (!in.atEnd()) {
-        line = in.readLine();
-
-        if (line.startsWith("ncols")) {
-            vizData->rasterData->ncols = line.split(" ", Qt::SkipEmptyParts).last().toInt();
-        } else if (line.startsWith("nrows")) {
-            vizData->rasterData->nrows = line.split(" ", Qt::SkipEmptyParts).last().toInt();
-        } else if (line.startsWith("xllcorner")) {
-            vizData->rasterData->xllcorner = line.split(" ", Qt::SkipEmptyParts).last().toDouble();
-        } else if (line.startsWith("yllcorner")) {
-            vizData->rasterData->yllcorner = line.split(" ", Qt::SkipEmptyParts).last().toDouble();
-        } else if (line.startsWith("cellsize")) {
-            vizData->rasterData->cellsize = line.split(" ", Qt::SkipEmptyParts).last().toDouble();
-        } else if (line.startsWith("NODATA_value")) {
-            vizData->rasterData->nodata_value = line.split(" ", Qt::SkipEmptyParts).last().toDouble();
-        } else {
-            // Break when grid data starts, typically after headers
-            break;
-        }
-    }
-
-    // Now read the grid data
-    while (!in.atEnd()) {
-        line = in.readLine();  // Move this outside the condition
-        if (!line.isEmpty()) {
-            QList<double> rowValues;
-            QStringList rowElements = line.split(" ", Qt::SkipEmptyParts);
-
-            for (const QString &value : rowElements) {
-                rowValues.append(value.toDouble());
+    int locationIndex = 0;
+    for(int i = 0; i < vizData->rasterData->raster->NROWS; i++) {
+        for(int j = 0; j < vizData->rasterData->raster->NCOLS; j++) {
+            if(vizData->rasterData->raster->data[i][j] == vizData->rasterData->raster->NODATA_VALUE) {
+                continue;
             }
-
-            vizData->rasterData->values.append(rowValues);
+            min = qMin(min, vizData->rasterData->raster->data[i][j]);
+            max = qMax(max, vizData->rasterData->raster->data[i][j]);
+            vizData->rasterData->locationPair1DTo2D[locationIndex] = std::make_pair(i, j);
+            vizData->rasterData->locationPair2DTo1D[QPair<int,int>(i,j)] = locationIndex;
+            vizData->rasterData->locationPair2DTo1DDistrict[QPair<int,int>(i,j)] = int(vizData->rasterData->raster->data[i][j]);
+            locationIndex++;
         }
     }
 
-    file.close();
+    vizData->rasterData->dataMin = min;
+    vizData->rasterData->dataMax = max;
+
+    vizData->rasterData->nLocations = locationIndex;
+
+    qDebug() << "Raster data loaded from file:" << filePath;
+    qDebug() << "Number of columns:" << vizData->rasterData->raster->NCOLS;
+    qDebug() << "Number of rows:" << vizData->rasterData->raster->NROWS;
+    qDebug() << "XLLCENTER:" << vizData->rasterData->raster->XLLCENTER;
+    qDebug() << "YLLCENTER:" << vizData->rasterData->raster->YLLCENTER;
+    qDebug() << "XLLCORNER:" << vizData->rasterData->raster->XLLCORNER;
+    qDebug() << "YLLCORNER:" << vizData->rasterData->raster->YLLCORNER;
+    qDebug() << "CELLSIZE:" << vizData->rasterData->raster->CELLSIZE;
+    qDebug() << "NODATA_VALUE:" << vizData->rasterData->raster->NODATA_VALUE;
+    qDebug() << "Number of locations:" << locationIndex;
+    qDebug() << "Data min:" << vizData->rasterData->dataMin;
+    qDebug() << "Data max:" << vizData->rasterData->dataMax;
+
+    // Trigger the completion callback
+    if (completionCallback) {
+        completionCallback();
+    }
 }
+
 
 void LoaderRaster::loadFileList(const QStringList &dbPathList, VizData *vizData, std::function<void(int)> progressCallback, std::function<void()> completionCallback) {
     // Load a list of files
@@ -76,3 +69,6 @@ void LoaderRaster::loadDBList(const QStringList &dbPathList, const QString locat
     // Not implemented for raster data
     qDebug() << "Error: Not implemented loadDBList for LoaderRaster!";
 }
+
+
+

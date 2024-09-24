@@ -31,13 +31,13 @@ protected:
     void mouseMoveEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
+    // void paintEvent(QPaintEvent *event) override;
 
 private:
     void setupShaders();
-    void setupVertexBuffers();
-    void updateVertexData();
     void checkOpenGLError(const QString &functionName);
     void setRasterColor(const QVector3D &color);
+    void renderTextAboveSquare(QPainter &painter, int col, int row, float x, float y);
 
     QOpenGLShaderProgram *shaderProgram;
     QOpenGLBuffer vbo;
@@ -58,18 +58,37 @@ private:
 
     // For panning and zooming
     QPoint lastMousePosition;
-    float zoomFactor;
+    std::tuple<float,float,float> lastView;
+    std::tuple<float,float,float> lastProjection;
     float panX;
     float panY;
+    float aspectRatio;
 
     bool panning;
     float prevXForPan;
     float prevYForPan;
+    float distance;
+
 
 public:
-    void updateInstanceData(VizData *vizData, int width, int height);
-    void updateInstanceDataMedian(VizData *vizData, int dataIndex, int month);
+    VizData *vizData;
+    float pixelScale;
+    float initPixelScaleX;
+    float initPixelScaleY;
+    float pixelScaleX;
+    float pixelScaleY;
+    bool inspectMode;
+
+public:
+    void updateInstanceData();
+    void updateInstanceDataAll();
+    void updateInstanceDataMedian(QString colName, int month);
+    void setupVertexBuffers();
+    Q_INVOKABLE void updateVertexData();
     Q_INVOKABLE void updateVertexBuffers();
+
+signals:
+    void mouseMoved(const QPoint &pos);
 };
 
 
