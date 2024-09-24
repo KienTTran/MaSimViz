@@ -276,12 +276,13 @@ int readFromCSVWorker(const QString& tableName, VizData *vizData,std::function<v
     colNames.sort();
 
     qDebug() << "[Load]Selected columns:" << vizData->sqlData.tableColumnsMap.values();
+    qDebug() << "[Load]Stats data columns:" << vizData->statsData.keys();
     qDebug() << "[Load]Reading data from CSV file:" << fileName;
-    qDebug() << "[Load]Column names:" << colNames;
+    qDebug() << "[Load]Available column names:" << colNames;
     qDebug() << "[Load]Stats min:" << statsMin;
     qDebug() << "[Load]Stats max:" << statsMax;
 
-    vizData->sqlData.tableColumnsMap[tableName] = colNames.join(",").chopped(1);
+    // vizData->sqlData.tableColumnsMap[tableName] = colNames.join(",").chopped(1);
 
     // if(colNames.size() != vizData->statsData.size()){
     //     qWarning("Column number does not match.");
@@ -304,7 +305,7 @@ int readFromCSVWorker(const QString& tableName, VizData *vizData,std::function<v
 
 
     // Clear the existing data
-    for(const QString col : colNames){
+    for(const QString col : vizData->statsData.keys()){
         vizData->statsData[col].medianMin = statsMin[colNames.indexOf(col)].toDouble();
         vizData->statsData[col].medianMax = statsMax[colNames.indexOf(col)].toDouble();
         vizData->statsData[col].iqr = QList<QList<QList<double>>>(vizData->statsData[col].iqrRanges.size(), QList<QList<double>>(vizData->monthCountStartToEnd, QList<double>(vizData->rasterData->nLocations, 0.0)));
@@ -317,25 +318,27 @@ int readFromCSVWorker(const QString& tableName, VizData *vizData,std::function<v
         // qDebug() << "[Load]month:" << month << "line length:" << line.size();
         int count = 0;
         for(int colNameIndex = 0; colNameIndex < colNames.size(); colNameIndex++){
-            for (int loc = 0; loc < vizData->rasterData->nLocations; loc++) {
-                int iqrSize =  vizData->statsData[colNames[colNameIndex]].iqrRanges.size();
-                for(int i = 0; i < iqrSize; i++){
-                    int index = colNameIndex * vizData->rasterData->nLocations *  iqrSize + loc *  iqrSize + i;
-                    // qDebug() << "month:" << month << colNames[colNameIndex] << "loc:" << loc << "index:" << index;
-                    vizData->statsData[colNames[colNameIndex]].iqr[i][month][loc] = line[index].toDouble();
-                    if((month == 0 || month == 1) && i == 0){
-                        if(count == vizData->rasterData->nLocations-1){
-                            qDebug() << "[Load]Last:" << count << month << colNames[colNameIndex] << loc << index << line[index].toDouble();
-                        }
-                        if(count == vizData->rasterData->nLocations*2-1){
-                            qDebug() << "[Load]Last:" << count << month << colNames[colNameIndex] << loc << index << line[index].toDouble();
-                        }
-                        if(count == vizData->rasterData->nLocations*3-1){
-                            qDebug() << "[Load]Last:" << count << month << colNames[colNameIndex] << loc << index << line[index].toDouble();
+            if(vizData->statsData.keys().contains(colNames[colNameIndex])){
+                for (int loc = 0; loc < vizData->rasterData->nLocations; loc++) {
+                    int iqrSize =  vizData->statsData[colNames[colNameIndex]].iqrRanges.size();
+                    for(int i = 0; i < iqrSize; i++){
+                        int index = colNameIndex * vizData->rasterData->nLocations *  iqrSize + loc *  iqrSize + i;
+                        // qDebug() << "month:" << month << colNames[colNameIndex] << "loc:" << loc << "index:" << index;
+                        vizData->statsData[colNames[colNameIndex]].iqr[i][month][loc] = line[index].toDouble();
+                        if((month == 0 || month == 1) && i == 0){
+                            if(count == vizData->rasterData->nLocations-1){
+                                qDebug() << "[Load]Last:" << count << month << colNames[colNameIndex] << loc << index << line[index].toDouble();
+                            }
+                            if(count == vizData->rasterData->nLocations*2-1){
+                                qDebug() << "[Load]Last:" << count << month << colNames[colNameIndex] << loc << index << line[index].toDouble();
+                            }
+                            if(count == vizData->rasterData->nLocations*3-1){
+                                qDebug() << "[Load]Last:" << count << month << colNames[colNameIndex] << loc << index << line[index].toDouble();
+                            }
                         }
                     }
+                    count++;
                 }
-                count++;
             }
         }
         // qDebug() << "[Load]Reading month:" << month << "count:" << count;
@@ -347,6 +350,8 @@ int readFromCSVWorker(const QString& tableName, VizData *vizData,std::function<v
         }
         month++;
     }
+
+    qDebug() << "[Load]Stats data columns:" << vizData->statsData.keys();
 
     file.close();
     return 0;
