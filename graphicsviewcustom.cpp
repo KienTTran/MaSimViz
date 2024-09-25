@@ -55,6 +55,10 @@ void GraphicsViewCustom::initSquareScene(){
         scene()->addItem(square);
     }
     scene()->update();
+
+    //set camera to center and zoom out a bit
+    centerOn(scene()->sceneRect().center());
+    scale(0.35, 0.35);
 }
 
 void GraphicsViewCustom::setSceneCustom(QGraphicsScene *scene){
