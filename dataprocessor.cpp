@@ -351,8 +351,6 @@ int readFromCSVWorker(const QString& tableName, VizData *vizData,std::function<v
         month++;
     }
 
-    qDebug() << "[Load]Stats data columns:" << vizData->statsData.keys();
-
     file.close();
     return 0;
 }
