@@ -41,10 +41,13 @@ void ChartCustom::plotDataMedianMultipleLocations(QString colName, QMap<QPair<in
 
     for (int i = 0; i < vizData->statsData[colName].iqr[0].size(); i += 12) {
         if(i == 0){
-            axisX->append(QString("Year %1").arg(i / 12), i);  // Append "Year X" label at every 12th month
+            axisX->append(QString("Year %1").arg(i / 12), i);
+        }
+        else if(i % 60 ==0){
+            axisX->append(QString("%1").arg(i / 12), i);
         }
         else{
-            axisX->append(QString("%1").arg(i / 12), i);  // Append "Year X" label at every 12th month
+            axisX->append(QString(""), i);
         }
     }
 

@@ -1,14 +1,18 @@
 cmake_minimum_required(VERSION 3.16)
 
-set(CMAKE_TOOLCHAIN_FILE ${CMAKE_CURRENT_SOURCE_DIR}/vcpkg/scripts/buildsystems/vcpkg.cmake CACHE STRING "Vcpkg toolchain file")
+set(QT_WASM FALSE)
 
 # Check if the target is Emscripten (WebAssembly)
-if (CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
+if (QT_WASM)
     set(QT_VERSION_MAJOR 6)
-    set(QT_WASM TRUE)
+    set(DVCPKG_CHAINLOAD_TOOLCHAIN_FILE=/Users/ktt/SDK/emsdk/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake)
+    set(DEMSCRIPTEN ON)
+    set(VCPKG_TARGET_TRIPLET wasm32-emscripten)
 else()
-    project(MaSimViz VERSION 0.1 LANGUAGES CXX)
+    set(CMAKE_TOOLCHAIN_FILE ${CMAKE_CURRENT_SOURCE_DIR}/vcpkg/scripts/buildsystems/vcpkg.cmake CACHE STRING "Vcpkg toolchain file")
 endif()
+
+project(MaSimViz VERSION 0.1 LANGUAGES CXX)
 
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
@@ -19,7 +23,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if(QT_WASM)
     message(STATUS "Configuring for WebAssembly")
-    find_package(Qt6 REQUIRED COMPONENTS Widgets OpenGLWidgets Concurrent Charts)
+    find_package(Qt6 REQUIRED COMPONENTS Widgets LinguistTools Sql OpenGLWidgets Concurrent Charts)
 else()
     find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets LinguistTools Sql OpenGLWidgets Concurrent Charts)
     find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets LinguistTools Sql OpenGLWidgets Concurrent Charts)
@@ -39,6 +43,7 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
     qt_add_executable(MaSimViz
         MANUAL_FINALIZATION
         ${PROJECT_SOURCES}
+        .gitignore
         loader.h loader.cpp
         loadersqlite.h loadersqlite.cpp
         graphicsviewcustom.h graphicsviewcustom.cpp
@@ -103,4 +108,6 @@ install(TARGETS MaSimViz
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
+
+
 
