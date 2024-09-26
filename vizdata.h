@@ -10,6 +10,13 @@
 class VizData
 {
 public:
+
+    struct ChatbotData{
+        bool isWithAPI = false;
+        QString apiKey = "";
+        QString modelPath = "";
+    };
+
     struct RasterData{
         AscFile *raster;
         int nLocations;
@@ -84,6 +91,7 @@ public:
     QMap<QString,StatsData> statsData;
     SQLData sqlData;
     bool isDistrictReporter = false;
+    ChatbotData chatbotData;
 };
 
 #endif // VIZDATA_H

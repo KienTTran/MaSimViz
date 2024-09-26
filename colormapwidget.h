@@ -51,7 +51,7 @@ protected:
 
         // Set up painter to draw text
         QPen pen;
-        pen.setColor(Qt::white);
+        pen.setColor(Qt::GlobalColor::gray);
         pen.setWidth(4);
         painter.setPen(pen);
         QFont font = painter.font();

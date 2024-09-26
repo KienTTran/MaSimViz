@@ -33,6 +33,7 @@
 #include "loadersqlite.h"
 #include "loaderyml.h"
 #include "loaderraster.h"
+#include "chatbotwithapi.h"
 
 
 MainWindow::MainWindow(QWidget *parent)
@@ -67,6 +68,11 @@ MainWindow::MainWindow(QWidget *parent)
     QObject::connect(ui->graphicsView, &GraphicsViewCustom::squareClickedOnScene, this, &MainWindow::onSquareClicked);
     QObject::connect(this, &MainWindow::addClearButton, ui->graphicsView, &GraphicsViewCustom::showClearButton);
 
+    ui->wev_chatbox->setMinimumWidth(width()/3);
+    // ui->wev_chatbox->setHidden(true);
+    ui->wev_chatbox->setVizData(vizData);
+    ui->wev_chatbox->initChatBot();
+
     hideMedianItems();
 }
 
@@ -77,6 +83,8 @@ MainWindow::~MainWindow()
 
 void MainWindow::resizeEvent(QResizeEvent *event)
 {
+    ui->graphicsView->fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
+    ui->wev_chatbox->setMinimumWidth(width()/3);
     QMainWindow::resizeEvent(event);
 }
 
@@ -104,7 +112,7 @@ QStringList searchForFilesWithPattern(const QString &directoryPath, QString patt
     return foundFiles;
 }
 
-bool MainWindow::displaySqlDataInDialogWithChecklist(VizData* vizData, QWidget* parentWidget) {
+bool MainWindow::displaySqlSelection(VizData* vizData, QWidget* parentWidget) {
     // Create the dialog
     QDialog* dialog = new QDialog(parentWidget);
     dialog->setWindowTitle("Select columns to plot");
@@ -458,7 +466,7 @@ void MainWindow::on_bt_process_clicked()
         loader = new LoaderSQLite();
         loader->loadFileSingle(dbFileList[0], vizData, nullptr, nullptr);
 
-        if(!displaySqlDataInDialogWithChecklist(vizData, this)){
+        if(!displaySqlSelection(vizData, this)){
             return;
         }
 
@@ -842,4 +850,127 @@ void MainWindow::showMap(QString name){
 
     }
 }
+
+
+// //select chatbot online or offline
+// // Pass a path to an API key file or a direct API key
+// QString apiKeyOrFilePath = "chatbot-api-key.txt";  // Can also be a string like "sk-xxxxxxxxxxxx"
+// OnlineChatbot *chatbot = new OnlineChatbot(apiKeyOrFilePath);
+// // Now you can use the chatbot to send messages
+// QString response = chatbot->sendMessage("Hello, how are you?");
+// qDebug() << "Response from chatbot:" << response;
+
+bool MainWindow::displayChatbotSetting(VizData* vizData, QWidget* parentWidget){
+
+    // Create dialog
+    QDialog* dialog = new QDialog(parentWidget);
+    dialog->setWindowTitle("Chatbot Settings");
+    dialog->resize(400, 150); // Set an initial size for the dialog
+    dialog->setWindowFlags(Qt::Dialog | Qt::CustomizeWindowHint | Qt::WindowTitleHint);
+    dialog->setFixedSize(QSize(400, 150)); // Set a fixed size for the dialog
+
+    // Create form layout
+    QFormLayout *formLayout = new QFormLayout(dialog);
+
+    // Chatbot type combobox
+    QLabel *labelType = new QLabel("Select Chatbot Type:", dialog);
+    QComboBox *cbChatbotType = new QComboBox(dialog);
+    cbChatbotType->addItem("Using API");
+    cbChatbotType->addItem("Using local model");
+
+    // Online input field for API key or path
+    QLabel *labelApiKey = new QLabel("Enter API Key or Path:", dialog);
+    QLineEdit *editApiKey = new QLineEdit(dialog);
+
+    // Offline combobox for model selection
+    QLabel *labelModel = new QLabel("Select Model:", dialog);
+    QComboBox *cbModel = new QComboBox(dialog);
+    cbModel->addItem("Model A");
+    cbModel->addItem("Model B");
+    cbModel->addItem("Model C");
+
+    // Add OK and Cancel buttons
+    QHBoxLayout *buttonLayout = new QHBoxLayout();
+    QPushButton *btnOk = new QPushButton("OK", dialog);
+    QPushButton *btnCancel = new QPushButton("Cancel", dialog);
+    buttonLayout->addWidget(btnOk);
+    buttonLayout->addWidget(btnCancel);
+
+    // Initially show API key input and hide model combobox
+    labelApiKey->setVisible(true);
+    editApiKey->setVisible(true);
+    labelModel->setVisible(false);
+    cbModel->setVisible(false);
+
+    // Update visibility based on chatbot type selection
+    connect(cbChatbotType, &QComboBox::currentIndexChanged, [&]() {
+        if (cbChatbotType->currentText() == "Using API") {
+            labelApiKey->setVisible(true);
+            editApiKey->setVisible(true);
+            labelModel->setVisible(false);
+            cbModel->setVisible(false);
+        } else if (cbChatbotType->currentText() == "Using local model") {
+            labelApiKey->setVisible(false);
+            editApiKey->setVisible(false);
+            labelModel->setVisible(true);
+            cbModel->setVisible(true);
+        }
+    });
+
+    // Add widgets to form layout
+    formLayout->addRow(labelType, cbChatbotType);
+    formLayout->addRow(labelApiKey, editApiKey);
+    formLayout->addRow(labelModel, cbModel);
+    formLayout->addRow(buttonLayout);
+    formLayout->setLabelAlignment(Qt::AlignmentFlag::AlignLeft);
+    formLayout->setFormAlignment(Qt::AlignmentFlag::AlignRight);
+    formLayout->setFieldGrowthPolicy(QFormLayout::FieldGrowthPolicy::AllNonFixedFieldsGrow);
+
+    // Handle OK button click
+    connect(btnOk, &QPushButton::clicked, [&]() {
+        if (cbChatbotType->currentText() == "Using API") {
+            vizData->chatbotData.apiKey = editApiKey->text();  // Store API key/path
+            vizData->chatbotData.isWithAPI = true;
+        } else {
+            vizData->chatbotData.modelPath = cbModel->currentText();  // Store selected offline model
+            vizData->chatbotData.isWithAPI = false;
+        }
+        dialog->accept();  // Close dialog with OK
+    });
+
+    // Handle Cancel button click
+    connect(btnCancel, &QPushButton::clicked, [&]() {
+        dialog->reject();  // Close dialog with Cancel
+    });
+
+    // Show the dialog and wait for user interaction
+    if (dialog->exec() == QDialog::Accepted) {
+        // Settings confirmed, you can now use `chatBotType`, `chatBotOnlineAPIKeyOrPath`, and `chatBotOfflineModelPath`
+        if (vizData->chatbotData.isWithAPI) {
+            qDebug() << "Chatbot type: Using API, API Key/Path:" << vizData->chatbotData.apiKey;
+            return true;
+        } else {
+            qDebug() << "Chatbot type: Using model, Selected Model:" << vizData->chatbotData.modelPath;
+            return false;
+        }
+    } else {
+        // User canceled the settings dialog
+        return false;
+    }
+    return false;
+}
+
+void MainWindow::onChatbotReplyReceived(QString response){
+    emit appendChatBotText(response);
+}
+
+void MainWindow::on_bt_chat_setting_clicked()
+{
+    if(displayChatbotSetting(vizData, this)){
+        ui->wev_chatbox->setVizData(vizData);
+        ui->wev_chatbox->initChatBot();
+        ui->wev_chatbox->setHidden(false);
+    }
+}
+
 
