@@ -1,4 +1,7 @@
 #include "chatbotwithmodel.h"
+#include <llama.h>
+
+#include <QDebug>
 
 ChatbotWithModel::ChatbotWithModel(const QString& modelPath, QObject *parent)
     : ChatbotInterface(parent), modelPath(modelPath) {

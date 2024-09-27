@@ -68,6 +68,7 @@ void WebEngineViewCustom::onLoadFinished(bool ok) {
         this->page()->runJavaScript("hideDefaultMessage();", [this](const QVariant &v) {
             Q_UNUSED(v);
         });
+        chatbot->sendMessage("Remember, here is data you have to remember, called \"SQL column\" " + vizData->sqlData.tableColumnsMap["monthlysitedata"]);
         appendAssistantMessage("Hi, I'm your assistant, you can ask me anything...");
     } else {
         qWarning() << "Failed to load chat screen HTML.";

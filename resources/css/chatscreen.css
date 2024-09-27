@@ -216,20 +216,6 @@ input:checked + .slider:before {
     color: gray;
 }
 
-/* Default Assistant Message */
-.default-assistant-message {
-    max-width: 70%;
-    margin: 5px;
-    padding: 8px;
-    border-radius: 10px;
-    word-wrap: break-word;
-    font-size: 14px;
-    align-self: flex-start;
-    background-color: #444444;
-    color: white;
-    display: none;
-}
-
 /* Style for the copy button */
 .copy-button {
     position: absolute;

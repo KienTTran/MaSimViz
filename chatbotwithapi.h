@@ -4,6 +4,7 @@
 #include "chatbotinterface.h"
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
+#include <QJsonArray>
 
 class ChatbotWithAPI : public ChatbotInterface {
     Q_OBJECT
@@ -22,6 +23,8 @@ private:
     QString apiKey;  // API key for the chatbot service
     QNetworkAccessManager *networkManager;  // For sending HTTP requests
     QString getAPIKeyOrFile(const QString &apiKeyOrFile);
+
+    QJsonArray messagesArray;  // Store all messages for the conversation
 };
 
 #endif // CHATBOTWITHAPI_H
