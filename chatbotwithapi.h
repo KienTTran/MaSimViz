@@ -21,6 +21,7 @@ private slots:
 private:
     QString apiKey;  // API key for the chatbot service
     QNetworkAccessManager *networkManager;  // For sending HTTP requests
+    QString getAPIKeyOrFile(const QString &apiKeyOrFile);
 };
 
 #endif // CHATBOTWITHAPI_H

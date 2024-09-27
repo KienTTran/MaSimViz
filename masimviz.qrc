@@ -1,0 +1,8 @@
+<RCC>
+    <qresource prefix="/">
+        <file>resources/html/chatscreen.html</file>
+        <file>resources/js/dompurify.js</file>
+        <file>resources/js/marked.js</file>
+        <file>resources/css/chatscreen.css</file>
+    </qresource>
+</RCC>

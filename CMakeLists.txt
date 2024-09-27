@@ -64,6 +64,8 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         chatbotwithmodel.h chatbotwithmodel.cpp
         webengineviewcustom.h webengineviewcustom.cpp
         chatbotinterface.h
+        preference.h preference.cpp
+        masimviz.qrc
 
     )
 

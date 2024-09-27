@@ -21,6 +21,9 @@ public:
     // Function to append an assistant message styled as a gray chat bubble
     Q_INVOKABLE void appendAssistantMessage(const QString& message);
 
+    // Initialize the chat window with HTML/CSS layout
+    void initChatScreen();
+
     void setVizData(VizData *vizData);
 
     void initChatBot();
@@ -28,9 +31,10 @@ public:
 private:
     // Helper function to inject JavaScript that appends a message to the chat
     void appendMessage(const QString& message, const QString& senderClass);
+    void injectJavaScriptFile(const QString &filePath);
+    void injectCDNScript(const QString &url);
 
-    // Initialize the chat window with HTML/CSS layout
-    void initializeChatScreen();
+private:
 
     // Web channel object for C++ <-> JavaScript communication
     QWebChannel *channel;
@@ -41,6 +45,11 @@ private:
     VizData *vizData;
 
     ChatbotInterface *chatbot;
+
+public slots:
+    void isAssistantReady(bool ready);
+    void onLoadFinished(bool ok);
+
 };
 
 #endif // WEBENGINEVIEWCUSTOM_H

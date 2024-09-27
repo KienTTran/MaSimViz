@@ -40,6 +40,13 @@ MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
 {
+    // Initialize preferences
+    preference = new Preference("./config.ini");
+
+    // Load window size and position on startup
+    resize(preference->loadWindowSize());
+    move(preference->loadWindowPosition());
+
     ui->setupUi(this);
     scene = new QGraphicsScene(this);
     ui->graphicsView->setSceneCustom(scene);
@@ -65,13 +72,17 @@ MainWindow::MainWindow(QWidget *parent)
 
     ui->wg_color_map->setHidden(true);
 
+    ui->wev_chatbox->page()->setBackgroundColor(Qt::transparent);
+    ui->wev_chatbox->setMinimumWidth(width()/3);
+    ui->wev_chatbox->initChatScreen();
+    ui->wev_chatbox->setEnabled(false);
+    ui->wev_chatbox->setContextMenuPolicy(Qt::ContextMenuPolicy::NoContextMenu);
+    ui->wev_chatbox->setHidden(true);
+    ui->bt_chat_setting->setHidden(true);
+
     QObject::connect(ui->graphicsView, &GraphicsViewCustom::squareClickedOnScene, this, &MainWindow::onSquareClicked);
     QObject::connect(this, &MainWindow::addClearButton, ui->graphicsView, &GraphicsViewCustom::showClearButton);
-
-    ui->wev_chatbox->setMinimumWidth(width()/3);
-    // ui->wev_chatbox->setHidden(true);
-    ui->wev_chatbox->setVizData(vizData);
-    ui->wev_chatbox->initChatBot();
+    QObject::connect(this,&MainWindow::isAssisantReady, ui->wev_chatbox, &WebEngineViewCustom::isAssistantReady);
 
     hideMedianItems();
 }
@@ -86,6 +97,17 @@ void MainWindow::resizeEvent(QResizeEvent *event)
     ui->graphicsView->fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
     ui->wev_chatbox->setMinimumWidth(width()/3);
     QMainWindow::resizeEvent(event);
+}
+
+void MainWindow::closeEvent(QCloseEvent *event) {
+    // Save window size and position
+    preference->saveWindowSize(size());
+    preference->saveWindowPosition(pos());
+
+    // Optionally, save other preferences like paths here
+
+    // Call the base class implementation
+    QMainWindow::closeEvent(event);
 }
 
 QLayout* widgetToLayout(QWidget* w){
@@ -509,6 +531,8 @@ void MainWindow::on_bt_process_clicked()
                                    //     }
                                    // }
 
+                                   preference->saveDBPaths(dbFileList);
+
                                    QString tableName = vizData->sqlData.tableColumnsMap.keys().last();
                                    int tableIndex = vizData->sqlData.dbTables.indexOf(tableName);
                                    QFile file(QDir(vizData->currentDirectory).filePath("MaSimViz_"+vizData->sqlData.tableColumnsMap.keys().last() + ".dat"));
@@ -841,13 +865,13 @@ void MainWindow::showMap(QString name){
         ui->wg_color_map->setColorMapMinMax(QPair<double,double>(vizData->rasterData->dataMin, vizData->rasterData->dataMax));
         ui->graphicsView->updateRasterData();
         showLastSquareValue();
+        preference->saveWorkPath(vizData->currentDirectory);
     }
     if(screenNumber == 1){
         qDebug() << "Column name changed to:" << name;
         currentColNameShown = name;
         updateMedianMap();
         showChart();
-
     }
 }
 
@@ -895,6 +919,9 @@ bool MainWindow::displayChatbotSetting(VizData* vizData, QWidget* parentWidget){
     QPushButton *btnCancel = new QPushButton("Cancel", dialog);
     buttonLayout->addWidget(btnOk);
     buttonLayout->addWidget(btnCancel);
+
+    editApiKey->setText(preference->loadAPIKeyPath(""));
+    cbModel->setCurrentText(preference->loadModelPath(""));
 
     // Initially show API key input and hide model combobox
     labelApiKey->setVisible(true);
@@ -948,10 +975,16 @@ bool MainWindow::displayChatbotSetting(VizData* vizData, QWidget* parentWidget){
         // Settings confirmed, you can now use `chatBotType`, `chatBotOnlineAPIKeyOrPath`, and `chatBotOfflineModelPath`
         if (vizData->chatbotData.isWithAPI) {
             qDebug() << "Chatbot type: Using API, API Key/Path:" << vizData->chatbotData.apiKey;
-            return true;
+            if(!vizData->chatbotData.apiKey.isEmpty()){
+                preference->saveAPIKeyPath(vizData->chatbotData.apiKey);
+                return true;
+            }
         } else {
             qDebug() << "Chatbot type: Using model, Selected Model:" << vizData->chatbotData.modelPath;
-            return false;
+            if(!vizData->chatbotData.modelPath.isEmpty()){
+                preference->saveModelPath(vizData->chatbotData.modelPath);
+                return true;
+            }
         }
     } else {
         // User canceled the settings dialog
@@ -968,9 +1001,31 @@ void MainWindow::on_bt_chat_setting_clicked()
 {
     if(displayChatbotSetting(vizData, this)){
         ui->wev_chatbox->setVizData(vizData);
-        ui->wev_chatbox->initChatBot();
-        ui->wev_chatbox->setHidden(false);
+        emit isAssisantReady(true);
+        if(ui->wev_chatbox->isHidden()){
+            ui->wev_chatbox->setHidden(false);
+        }
     }
 }
 
+
+void MainWindow::on_chb_assist_clicked(bool checked)
+{
+    if(checked){
+        ui->bt_chat_setting->setHidden(false);
+        if(ui->wev_chatbox->isHidden()){
+            ui->wev_chatbox->setHidden(false);
+        }
+
+        QWebEngineView* devToolsView = new QWebEngineView();
+        ui->wev_chatbox->page()->setDevToolsPage(devToolsView->page());
+        devToolsView->show();
+    }
+    else{
+        ui->bt_chat_setting->setHidden(true);
+        if(!ui->wev_chatbox->isHidden()){
+            ui->wev_chatbox->setHidden(true);
+        }
+    }
+}
 

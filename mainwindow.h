@@ -15,6 +15,7 @@
 #include <atomic>
 #include <tuple>
 
+#include "preference.h"
 #include "loader.h"
 #include "vizdata.h"
 #include "graphicsviewcustom.h"
@@ -41,6 +42,7 @@ public:
 
 protected:
     void resizeEvent(QResizeEvent *event) override;
+    void closeEvent(QCloseEvent *event) override;
 
 private slots:
     void on_bt_auto_load_folder_clicked();
@@ -65,6 +67,8 @@ private slots:
 
     void on_bt_chat_setting_clicked();
 
+    void on_chb_assist_clicked(bool checked);
+
 public slots:
     void onSquareClicked(const QPoint &pos, const QColor &color);
     void onChatbotReplyReceived(QString response);
@@ -72,6 +76,7 @@ public slots:
 private:
     Ui::MainWindow *ui;
     QString statusMessage = "";
+    Preference *preference;
     Loader *loader;
     QStringList ascFileList;
     QStringList dbFileList;
@@ -115,5 +120,6 @@ private:
 signals:
     void addClearButton(bool show);
     void appendChatBotText(QString text);
+    void isAssisantReady(bool ready);
 };
 #endif // MAINWINDOW_H

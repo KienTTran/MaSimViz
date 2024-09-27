@@ -4,11 +4,34 @@
 #include <QJsonArray>
 #include <QNetworkRequest>
 #include <QUrl>
+#include <QFileInfo>
 
-ChatbotWithAPI::ChatbotWithAPI(const QString& apiKey, QObject *parent)
-    : ChatbotInterface(parent), apiKey(apiKey) {
+ChatbotWithAPI::ChatbotWithAPI(const QString& apiKeyOrPath, QObject *parent)
+    : ChatbotInterface(parent) {
+    this->apiKey = getAPIKeyOrFile(apiKeyOrPath);
     networkManager = new QNetworkAccessManager(this);
     connect(networkManager, &QNetworkAccessManager::finished, this, &ChatbotWithAPI::handleAPIResponse);
+}
+
+QString ChatbotWithAPI::getAPIKeyOrFile(const QString &apiKeyOrFile) {
+    QFileInfo fileInfo(apiKeyOrFile);
+
+    // Check if the input is a valid file path
+    if (fileInfo.exists() && fileInfo.isFile()) {
+        QFile file(apiKeyOrFile);
+        if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            QTextStream in(&file);
+            QString apiKey = in.readAll().trimmed();  // Read the key from the file and trim whitespace
+            file.close();
+            return apiKey;
+        } else {
+            qWarning() << "Could not open the API key file.";
+            return QString();
+        }
+    } else {
+        // If it's not a file, return the input directly (assuming it's a key string)
+        return apiKeyOrFile;
+    }
 }
 
 void ChatbotWithAPI::sendMessage(const QString& message) {

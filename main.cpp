@@ -13,8 +13,8 @@ int main(int argc, char *argv[])
     format.setVersion(4, 1);  // OpenGL 4.1
     format.setProfile(QSurfaceFormat::CoreProfile);  // Core profile
     QSurfaceFormat::setDefaultFormat(format);
-    QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
     QApplication a(argc, argv);
+
 
     // Set app palette based on system theme
     QPalette palette;

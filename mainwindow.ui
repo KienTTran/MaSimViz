@@ -2,6 +2,9 @@
 <ui version="4.0">
  <class>MainWindow</class>
  <widget class="QMainWindow" name="MainWindow">
+  <property name="enabled">
+   <bool>true</bool>
+  </property>
   <property name="geometry">
    <rect>
     <x>0</x>
@@ -168,6 +171,13 @@
            </widget>
           </item>
           <item>
+           <widget class="QCheckBox" name="chb_assist">
+            <property name="text">
+             <string>Assistant</string>
+            </property>
+           </widget>
+          </item>
+          <item>
            <widget class="QPushButton" name="bt_chat_setting">
             <property name="minimumSize">
              <size>
@@ -187,13 +197,16 @@
           <item row="0" column="0">
            <widget class="WebEngineViewCustom" name="wev_chatbox" native="true">
             <property name="enabled">
-             <bool>true</bool>
+             <bool>false</bool>
             </property>
             <property name="minimumSize">
              <size>
               <width>0</width>
               <height>0</height>
              </size>
+            </property>
+            <property name="contextMenuPolicy">
+             <enum>Qt::ContextMenuPolicy::NoContextMenu</enum>
             </property>
            </widget>
           </item>

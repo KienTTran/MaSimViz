@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+    <meta charset='UTF-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+    <link rel="stylesheet" type="text/css" href="qrc:/resources/css/chatscreen.css">
+    <!-- Include Highlight.js CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css">
+</head>
+<body>
+    <div class="theme-toggle-container">
+        <label class="theme-toggle">
+            <input type="checkbox" id="theme-toggle-checkbox">
+            <span class="slider"></span>
+        </label>
+        <span class="theme-toggle-label" id="theme-label">Dark</span>
+    </div>
+
+    <div class='message-container'>
+        <div class="default-assistant-message" id="default-message">
+            Please use setting to enable assistant!
+        </div>
+
+        <div class='message-container' id='message-container'></div>
+    </div>
+
+    <div class='input-area'>
+        <input type='text' id='message-input' placeholder='Type a message...'>
+        <button id='send-button'>Send</button>
+        <div id="loading-bar" style="display:none;">
+            <div class="loading-spinner"></div>
+        </div>
+    </div>
+
+    <!-- Include Highlight.js script -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+    <script src="qrc:/resources/js/marked.js"></script>
+    <script src="qrc:/resources/js/dompurify.js"></script>
+
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+
+    <script>
+        if (typeof qt !== 'undefined' && qt.webChannelTransport) {
+            new QWebChannel(qt.webChannelTransport, function(channel) {
+                window.chatbot = channel.objects.chatbot;
+                console.log("WebChannel initialized.");
+            });
+        } else {
+            console.warn("QWebChannel is not available. Some functionalities may not work.");
+        }
+
+        function toggleLoading(isLoading) {
+            var inputField = document.getElementById('message-input');
+            var sendButton = document.getElementById('send-button');
+            var loadingBar = document.getElementById('loading-bar');
+
+            if (isLoading) {
+                inputField.style.display = 'none';
+                sendButton.style.display = 'none';
+                loadingBar.style.display = 'flex';
+            } else {
+                inputField.style.display = 'block';
+                sendButton.style.display = 'block';
+                loadingBar.style.display = 'none';
+            }
+        }
+
+        document.getElementById('send-button').addEventListener('click', function() {
+            var inputField = document.getElementById('message-input');
+            var message = inputField.value;
+            if (message.trim() !== '') {
+                toggleLoading(true);  // Show loading spinner
+                window.chatbot.sendMessage(message);
+                inputField.value = '';
+            }
+        });
+
+        document.getElementById('message-input').addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                document.getElementById('send-button').click();
+            }
+        });
+
+        function onMessageReceived(message) {
+            toggleLoading(false);  // Hide loading spinner and show input/button again
+            var inputField = document.getElementById('message-input');
+            document.querySelectorAll('pre code').forEach((block) => {
+                // Wrap each code block in a container to add the copy button
+                var codeContainer = document.createElement('div');
+                codeContainer.className = 'code-container';
+                block.parentNode.insertBefore(codeContainer, block);
+                codeContainer.appendChild(block);
+
+                // Create and append the copy button
+                var copyButton = document.createElement('button');
+                copyButton.innerText = 'Copy';
+                copyButton.className = 'copy-button';
+                codeContainer.appendChild(copyButton);
+
+                // Highlight the code block
+                hljs.highlightElement(block);
+
+                // Add click event to copy the code
+                copyButton.addEventListener('click', function() {
+                    var codeText = block.innerText;
+
+                    // Check if navigator.clipboard is supported
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(codeText).then(() => {
+                            copyButton.innerText = 'Copied!';
+                            setTimeout(() => {
+                                copyButton.innerText = 'Copy';
+                            }, 2000);
+                        }).catch(err => {
+                            console.error('Failed to copy: ', err);
+                        });
+                    } else {
+                        // Fallback method for unsupported browsers
+                        var textArea = document.createElement('textarea');
+                        textArea.value = codeText;
+                        document.body.appendChild(textArea);
+                        textArea.select();
+                        try {
+                            document.execCommand('copy');
+                            copyButton.innerText = 'Copied!';
+                            setTimeout(() => {
+                                copyButton.innerText = 'Copy';
+                            }, 2000);
+                        } catch (err) {
+                            console.error('Fallback: Oops, unable to copy', err);
+                        }
+                        document.body.removeChild(textArea);
+                    }
+                });
+            });
+            inputField.focus();
+        }
+
+        // Theme toggle functionality
+        document.getElementById('theme-toggle-checkbox').addEventListener('change', function() {
+            var body = document.body;
+            var themeLabel = document.getElementById('theme-label');
+            if (this.checked) {
+                body.classList.add('light-theme');
+                themeLabel.innerText = 'Light';
+            } else {
+                body.classList.remove('light-theme');
+                themeLabel.innerText = 'Dark';
+            }
+        });
+
+        // Functions to show and hide the default message
+        function showDefaultMessage() {
+            console.log("Executing showDefaultMessage()");
+            try {
+                var defaultMsg = document.getElementById('default-message');
+                if (defaultMsg) {
+                    defaultMsg.style.display = 'block';
+                } else {
+                    console.warn("Default message element not found.");
+                }
+                var inputArea = document.querySelector('.input-area');
+                if (inputArea) {
+                    inputArea.style.display = 'none';
+                } else {
+                    console.warn("Input area element not found.");
+                }
+                var sliderToggle = document.querySelector('.theme-toggle-container');
+                if (sliderToggle) {
+                    sliderToggle.style.display = 'none';
+                } else {
+                    console.warn("Slider toggle element not found.");
+                }
+            } catch (error) {
+                console.error("Error in showDefaultMessage:", error);
+            }
+        }
+
+        function hideDefaultMessage() {
+            console.log("Executing hideDefaultMessage()");
+            try {
+                var defaultMsg = document.getElementById('default-message');
+                if (defaultMsg) {
+                    defaultMsg.style.display = 'none';
+                } else {
+                    console.warn("Default message element not found.");
+                }
+                var inputArea = document.querySelector('.input-area');
+                if (inputArea) {
+                    inputArea.style.display = 'flex';
+                } else {
+                    console.warn("Input area element not found.");
+                }
+                var sliderToggle = document.querySelector('.theme-toggle-container');
+                if (sliderToggle) {
+                    sliderToggle.style.display = 'flex';
+                } else {
+                    console.warn("Slider toggle element not found.");
+                }
+            } catch (error) {
+                console.error("Error in hideDefaultMessage:", error);
+            }
+        }
+
+        // Initially, show the default message
+        window.onload = function() {
+            console.log("Window loaded. Showing default message.");
+            showDefaultMessage();
+        };
+    </script>
+</body>
+</html>
+
