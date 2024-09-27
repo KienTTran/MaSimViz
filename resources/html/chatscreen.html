@@ -81,6 +81,12 @@
             }
         });
 
+        function escapeHTML(str) {
+            var div = document.createElement('div');
+            div.appendChild(document.createTextNode(str));
+            return div.innerHTML;
+        }
+
         function onMessageReceived(message) {
             toggleLoading(false);  // Hide loading spinner and show input/button again
             var inputField = document.getElementById('message-input');
@@ -90,6 +96,9 @@
                 codeContainer.className = 'code-container';
                 block.parentNode.insertBefore(codeContainer, block);
                 codeContainer.appendChild(block);
+
+                // Escape and insert the block's content safely
+                //block.innerHTML = escapeHTML(block.innerHTML);
 
                 // Create and append the copy button
                 var copyButton = document.createElement('button');
@@ -133,6 +142,10 @@
                     }
                 });
             });
+            // Auto-scroll to the bottom of the page after new message
+            var chatContainer = document.getElementById('message-container');  // The container that holds the chat messages
+            chatContainer.scrollTop = chatContainer.scrollHeight;  // Scroll to the bottom of the chat
+
             inputField.focus();
         }
 

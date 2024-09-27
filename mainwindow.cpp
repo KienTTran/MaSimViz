@@ -1017,9 +1017,9 @@ void MainWindow::on_chb_assist_clicked(bool checked)
             ui->wev_chatbox->setHidden(false);
         }
 
-        QWebEngineView* devToolsView = new QWebEngineView();
-        ui->wev_chatbox->page()->setDevToolsPage(devToolsView->page());
-        devToolsView->show();
+        // QWebEngineView* devToolsView = new QWebEngineView();
+        // ui->wev_chatbox->page()->setDevToolsPage(devToolsView->page());
+        // devToolsView->show();
     }
     else{
         ui->bt_chat_setting->setHidden(true);
