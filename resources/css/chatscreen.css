@@ -51,22 +51,6 @@ body {
     color: white;
 }
 
-/* Style for code block to allow horizontal scrolling */
-code {
-    display: -webkit-inline-box;
-    white-space: pre-wrap; /* Wraps code within the block */
-    background-color: #f3f3f3;
-    padding-top: 0px;
-    padding-bottom: 0px;
-    padding-left: 2px;
-    padding-right: 2px;
-    border-radius: 5px;
-    overflow-x: auto; /* Enable horizontal scroll for long code lines */
-    font-family: monospace; /* Set monospace font for code */
-    color: #444444;
-}
-
-
 .input-area {
     position: fixed;
     bottom: 0;
@@ -79,7 +63,7 @@ code {
     box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1);
 }
 
-.input-area input {
+/*.input-area input {
     flex: 1;
     padding: 5px;
     border-radius: 10px;
@@ -87,7 +71,30 @@ code {
     font-size: 14px;
     background-color: #444444;
     color: #ffffff;
+}*/
+
+.input-area textarea {
+    flex: 1;
+    padding: 5px;
+    border-radius: 10px;
+    border: 1px solid #666666;
+    font-size: 14px;
+    background-color: #444444;
+    color: #ffffff;
+    resize: none; /* Disable manual resizing */
+    overflow-y: auto; /* Enable vertical scrolling when content is too long */
+    overflow-x: auto; /* Enable horizontal scrolling when content is too wide */
+    max-height: 200px; /* Limit the maximum height */
+    height: auto; /* Initial height */
+    min-height: 40px; /* Set a minimum height for better UX */
+    box-sizing: border-box; /* Ensure padding and borders don't affect the width/height calculations */
 }
+
+/* Ensure the input area adapts to the expanding height */
+.input-area {
+    align-items: flex-end;
+}
+
 
 .input-area button {
     margin-left: 5px;
@@ -237,6 +244,22 @@ input:checked + .slider:before {
 
 .copy-button:hover {
     background-color: #0056b3;
+}
+
+/* Style for code block to allow horizontal scrolling */
+code {
+    display: -webkit-inline-box;
+    white-space: pre-wrap; /* Wraps code within the block */
+    background-color: #f3f3f3;
+    padding-top: 0px;
+    padding-bottom: 0px;
+    padding-left: 2px;
+    padding-right: 2px;
+    border-radius: 5px;
+    border: 1px dotted #666
+    overflow-x: auto; /* Enable horizontal scroll for long code lines */
+    font-family: monospace; /* Set monospace font for code */
+    color: #444444;
 }
 
 p {

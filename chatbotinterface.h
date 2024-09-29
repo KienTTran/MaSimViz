@@ -12,6 +12,8 @@ public:
 
     // Pure virtual function to be implemented by derived classes to send a message
     Q_INVOKABLE virtual void sendMessage(const QString& message) = 0;
+    Q_INVOKABLE virtual void sendFile(const QString& filePath) = 0;
+    Q_INVOKABLE virtual void fromJS(const QString& message) = 0;
 
 signals:
     // Signal to notify when the chatbot has received a response

@@ -66,6 +66,8 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         chatbotinterface.h
         preference.h preference.cpp
         masimviz.qrc
+        chatbotwithapiopenai.h chatbotwithapiopenai.cpp
+        chatbotwithapillamacpp.h chatbotwithapillamacpp.cpp
 
     )
 
@@ -105,6 +107,8 @@ else()
     target_link_libraries(${PROJECT_NAME} PRIVATE yaml-cpp)
 
     target_link_libraries(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/llamacpp/build/lib/libllama.dylib)
+    target_link_libraries(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/llamacpp/build/lib/libggml.dylib)
+    target_link_libraries(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/llamacpp/build/common/libcommon.a)
 endif()
 
 # If building for WebAssembly, ensure WASM-specific properties

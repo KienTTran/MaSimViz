@@ -57,6 +57,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->graphicsView->setRenderHint(QPainter::SmoothPixmapTransform);
 
     vizData = new VizData();
+    vizData->prefData = preference;
     ui->graphicsView->setVizData(vizData);
 
     ui->le_sim_path->setText("");
@@ -875,23 +876,34 @@ void MainWindow::showMap(QString name){
     }
 }
 
+QString MainWindow::getAPIKeyOrFile(const QString &apiKeyOrFile) {
+    QFileInfo fileInfo(apiKeyOrFile);
 
-// //select chatbot online or offline
-// // Pass a path to an API key file or a direct API key
-// QString apiKeyOrFilePath = "chatbot-api-key.txt";  // Can also be a string like "sk-xxxxxxxxxxxx"
-// OnlineChatbot *chatbot = new OnlineChatbot(apiKeyOrFilePath);
-// // Now you can use the chatbot to send messages
-// QString response = chatbot->sendMessage("Hello, how are you?");
-// qDebug() << "Response from chatbot:" << response;
+    // Check if the input is a valid file path
+    if (fileInfo.exists() && fileInfo.isFile()) {
+        QFile file(apiKeyOrFile);
+        if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            QTextStream in(&file);
+            QString apiKey = in.readAll().trimmed();  // Read the key from the file and trim whitespace
+            file.close();
+            return apiKey;
+        } else {
+            qDebug() << "Could not open the API key file.";
+            return QString();
+        }
+    } else {
+        // If it's not a file, return the input directly (assuming it's a key string)
+        return apiKeyOrFile;
+    }
+}
 
 bool MainWindow::displayChatbotSetting(VizData* vizData, QWidget* parentWidget){
 
     // Create dialog
     QDialog* dialog = new QDialog(parentWidget);
     dialog->setWindowTitle("Chatbot Settings");
-    dialog->resize(400, 150); // Set an initial size for the dialog
     dialog->setWindowFlags(Qt::Dialog | Qt::CustomizeWindowHint | Qt::WindowTitleHint);
-    dialog->setFixedSize(QSize(400, 150)); // Set a fixed size for the dialog
+    dialog->setFixedSize(QSize(400, 250)); // Set a fixed size for the dialog
 
     // Create form layout
     QFormLayout *formLayout = new QFormLayout(dialog);
@@ -903,8 +915,21 @@ bool MainWindow::displayChatbotSetting(VizData* vizData, QWidget* parentWidget){
     cbChatbotType->addItem("Using local model");
 
     // Online input field for API key or path
+    QLabel *labelApiprovider = new QLabel("Select API Provider:", dialog);
+    QComboBox *cbAPIProvider = new QComboBox(dialog);
+    for(const QString &apiProvider : vizData->chatbotData.apiProviders){
+        cbAPIProvider->addItem(apiProvider);
+    }
+    QLabel *labelApiURL = new QLabel("Enter API URL:", dialog);
+    QLineEdit *editApiURL = new QLineEdit(dialog);
     QLabel *labelApiKey = new QLabel("Enter API Key or Path:", dialog);
+
+    // Create horizontal layout for API key and browse button
+    QHBoxLayout *apiKeyLayout = new QHBoxLayout();
     QLineEdit *editApiKey = new QLineEdit(dialog);
+    QPushButton *btnBrowse = new QPushButton("Browse", dialog);  // Create the Browse button
+    apiKeyLayout->addWidget(editApiKey);
+    apiKeyLayout->addWidget(btnBrowse);
 
     // Offline combobox for model selection
     QLabel *labelModel = new QLabel("Select Model:", dialog);
@@ -920,23 +945,47 @@ bool MainWindow::displayChatbotSetting(VizData* vizData, QWidget* parentWidget){
     buttonLayout->addWidget(btnOk);
     buttonLayout->addWidget(btnCancel);
 
-    editApiKey->setText(preference->loadAPIKeyPath(""));
+    // Load saved settings
+    QMap<QString,QStringList> apiProviderInfo = preference->loadChatbotAPIInfo();
+    QString apiProvider = preference->loadChatbotAPIProvider(vizData->chatbotData.apiProviders[0]);
+
+    editApiURL->setText(apiProviderInfo[apiProvider].size() > 0 ? apiProviderInfo[apiProvider][0] : "");
+    editApiKey->setText(apiProviderInfo[apiProvider].size() > 0 ? apiProviderInfo[apiProvider][1] : "");
+    cbAPIProvider->setCurrentText(apiProvider);
     cbModel->setCurrentText(preference->loadModelPath(""));
 
     // Initially show API key input and hide model combobox
+    labelApiprovider->setVisible(true);
+    cbAPIProvider->setVisible(true);
+    labelApiURL->setVisible(true);
+    editApiURL->setVisible(true);
     labelApiKey->setVisible(true);
     editApiKey->setVisible(true);
     labelModel->setVisible(false);
     cbModel->setVisible(false);
 
+    connect(cbAPIProvider, &QComboBox::currentTextChanged, [&](const QString &text) {
+        vizData->chatbotData.apiProvider = text;
+        editApiURL->setText(apiProviderInfo[text].size() > 0 ? apiProviderInfo[text][0] : "");
+        editApiKey->setText(apiProviderInfo[text].size() > 0 ? apiProviderInfo[text][1] : "");
+    });
+
     // Update visibility based on chatbot type selection
     connect(cbChatbotType, &QComboBox::currentIndexChanged, [&]() {
         if (cbChatbotType->currentText() == "Using API") {
+            labelApiprovider->setVisible(true);
+            cbAPIProvider->setVisible(true);
+            labelApiURL->setVisible(true);
+            editApiURL->setVisible(true);
             labelApiKey->setVisible(true);
             editApiKey->setVisible(true);
             labelModel->setVisible(false);
             cbModel->setVisible(false);
         } else if (cbChatbotType->currentText() == "Using local model") {
+            labelApiprovider->setVisible(false);
+            cbAPIProvider->setVisible(false);
+            labelApiURL->setVisible(false);
+            editApiURL->setVisible(false);
             labelApiKey->setVisible(false);
             editApiKey->setVisible(false);
             labelModel->setVisible(true);
@@ -944,9 +993,19 @@ bool MainWindow::displayChatbotSetting(VizData* vizData, QWidget* parentWidget){
         }
     });
 
+    // Connect the Browse button to open a file dialog and set the selected file path to editApiKey
+    connect(btnBrowse, &QPushButton::clicked, [&]() {
+        QString filePath = QFileDialog::getOpenFileName(dialog, "Select API Key or Path");
+        if (!filePath.isEmpty()) {
+            editApiKey->setText(filePath);  // Set the selected file path in editApiKey
+        }
+    });
+
     // Add widgets to form layout
     formLayout->addRow(labelType, cbChatbotType);
-    formLayout->addRow(labelApiKey, editApiKey);
+    formLayout->addRow(labelApiprovider, cbAPIProvider);
+    formLayout->addRow(labelApiURL, editApiURL);
+    formLayout->addRow(labelApiKey, apiKeyLayout);  // Add the API key layout (edit and button)
     formLayout->addRow(labelModel, cbModel);
     formLayout->addRow(buttonLayout);
     formLayout->setLabelAlignment(Qt::AlignmentFlag::AlignLeft);
@@ -956,10 +1015,8 @@ bool MainWindow::displayChatbotSetting(VizData* vizData, QWidget* parentWidget){
     // Handle OK button click
     connect(btnOk, &QPushButton::clicked, [&]() {
         if (cbChatbotType->currentText() == "Using API") {
-            vizData->chatbotData.apiKey = editApiKey->text();  // Store API key/path
             vizData->chatbotData.isWithAPI = true;
-        } else {
-            vizData->chatbotData.modelPath = cbModel->currentText();  // Store selected offline model
+        } else {  // Store selected offline model
             vizData->chatbotData.isWithAPI = false;
         }
         dialog->accept();  // Close dialog with OK
@@ -974,16 +1031,41 @@ bool MainWindow::displayChatbotSetting(VizData* vizData, QWidget* parentWidget){
     if (dialog->exec() == QDialog::Accepted) {
         // Settings confirmed, you can now use `chatBotType`, `chatBotOnlineAPIKeyOrPath`, and `chatBotOfflineModelPath`
         if (vizData->chatbotData.isWithAPI) {
-            qDebug() << "Chatbot type: Using API, API Key/Path:" << vizData->chatbotData.apiKey;
-            if(!vizData->chatbotData.apiKey.isEmpty()){
-                preference->saveAPIKeyPath(vizData->chatbotData.apiKey);
+            if(!editApiKey->text().isEmpty() || !editApiURL->text().isEmpty()){
+                // Check if the URL is valid
+                QUrl url(editApiURL->text());
+                if (!url.isValid()) {
+                    QMessageBox::information(this, "Information", "Invalid API URL.");
+                    return false;
+                }
+                if(getAPIKeyOrFile(editApiKey->text()).isEmpty()){
+                    QMessageBox::information(this,"Information", "Invalid Key path or empty key.");
+                    return false;
+                }
+                vizData->chatbotData.apiProviderInfo[cbAPIProvider->currentText()] = {editApiURL->text(),
+                                                                                      editApiKey->text(),
+                                                                                      getAPIKeyOrFile(editApiKey->text())};
+                vizData->chatbotData.apiProvider = cbAPIProvider->currentText();
+                preference->saveChatbotAPIProvider(vizData->chatbotData.apiProvider);
+                preference->saveChatbotAPIInfo(vizData->chatbotData.apiProviderInfo);
+                qDebug() << "Chatbot type: Using API, API URL:" << vizData->chatbotData.apiProviderInfo[cbAPIProvider->currentText()][0];
+                qDebug() << "Chatbot type: Using API, API Key/Path:" << vizData->chatbotData.apiProviderInfo[cbAPIProvider->currentText()][2];
                 return true;
             }
+            else{
+                qWarning() << "No API URL or Key/Path provided";
+                return false;
+            }
         } else {
-            qDebug() << "Chatbot type: Using model, Selected Model:" << vizData->chatbotData.modelPath;
-            if(!vizData->chatbotData.modelPath.isEmpty()){
+            if(!cbModel->currentText().isEmpty()){
+                vizData->chatbotData.modelPath = cbModel->currentText();
                 preference->saveModelPath(vizData->chatbotData.modelPath);
+                qDebug() << "Chatbot type: Using model, Selected Model:" << cbModel->currentText();
                 return true;
+            }
+            else{
+                qWarning() << "No model selected";
+                return false;
             }
         }
     } else {
@@ -992,6 +1074,7 @@ bool MainWindow::displayChatbotSetting(VizData* vizData, QWidget* parentWidget){
     }
     return false;
 }
+
 
 void MainWindow::onChatbotReplyReceived(QString response){
     emit appendChatBotText(response);

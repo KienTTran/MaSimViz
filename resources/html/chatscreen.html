@@ -24,8 +24,9 @@
         <div class='message-container' id='message-container'></div>
     </div>
 
+
     <div class='input-area'>
-        <input type='text' id='message-input' placeholder='Type a message...'>
+        <textarea id="message-input" placeholder="Type a message..."></textarea>
         <button id='send-button'>Send</button>
         <div id="loading-bar" style="display:none;">
             <div class="loading-spinner"></div>
@@ -40,14 +41,16 @@
     <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
 
     <script>
-        if (typeof qt !== 'undefined' && qt.webChannelTransport) {
-            new QWebChannel(qt.webChannelTransport, function(channel) {
-                window.chatbot = channel.objects.chatbot;
-                console.log("WebChannel initialized.");
-            });
-        } else {
-            console.warn("QWebChannel is not available. Some functionalities may not work.");
-        }
+        document.addEventListener("DOMContentLoaded", function() {
+            if (typeof qt !== 'undefined' && qt.webChannelTransport) {
+                new QWebChannel(qt.webChannelTransport, function(channel) {
+                    window.chatbot = channel.objects.chatbot;
+                    console.warn("WebChannel initialized.");
+                });
+            } else {
+                console.warn("QWebChannel is not available. Some functionalities may not work.");
+            }
+        });
 
         function toggleLoading(isLoading) {
             var inputField = document.getElementById('message-input');
@@ -71,15 +74,36 @@
             if (message.trim() !== '') {
                 toggleLoading(true);  // Show loading spinner
                 window.chatbot.sendMessage(message);
-                inputField.value = '';
+                inputField.value = '';  // Clear the textarea
+                resetTextareaHeight();  // Reset height after sending
             }
         });
 
         document.getElementById('message-input').addEventListener('keypress', function(event) {
             if (event.key === 'Enter') {
-                document.getElementById('send-button').click();
+                if (!event.shiftKey) {  // Send the message only if Shift is not pressed
+                    event.preventDefault();  // Prevent default behavior of Enter
+                    document.getElementById('send-button').click();  // Trigger the send button click
+                }
             }
         });
+
+        // Auto-resize textarea on input
+        document.getElementById('message-input').addEventListener('input', function() {
+            this.style.height = 'auto';  // Reset the height so it can shrink on deletion
+            if (this.scrollHeight <= 200) { // Auto-resize up to 200px max height
+                this.style.height = (this.scrollHeight) + 'px';
+            } else {
+                this.style.height = '200px';  // Set to max height, and enable scrolling
+            }
+        });
+
+        // Function to reset the textarea height after sending a message
+        function resetTextareaHeight() {
+            var inputField = document.getElementById('message-input');
+            inputField.style.height = '40px';  // Reset to initial height
+        }
+
 
         function escapeHTML(str) {
             var div = document.createElement('div');
@@ -89,7 +113,6 @@
 
         function onMessageReceived(message) {
             toggleLoading(false);  // Hide loading spinner and show input/button again
-            var inputField = document.getElementById('message-input');
             document.querySelectorAll('pre code').forEach((block) => {
                 // Wrap each code block in a container to add the copy button
                 var codeContainer = document.createElement('div');
@@ -146,6 +169,7 @@
             var chatContainer = document.getElementById('message-container');  // The container that holds the chat messages
             chatContainer.scrollTop = chatContainer.scrollHeight;  // Scroll to the bottom of the chat
 
+            var inputField = document.getElementById('message-input');
             inputField.focus();
         }
 

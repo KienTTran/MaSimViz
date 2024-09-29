@@ -2,29 +2,29 @@
 #define CHATBOTWITHAPI_H
 
 #include "chatbotinterface.h"
+#include "chatbotwithapiopenai.h"
+#include "chatbotwithapillamacpp.h"
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QJsonArray>
+
+#include "vizdata.h"
 
 class ChatbotWithAPI : public ChatbotInterface {
     Q_OBJECT
 
 public:
-    explicit ChatbotWithAPI(const QString& apiKey, QObject *parent = nullptr);
+    explicit ChatbotWithAPI(VizData *vizData, QObject *parent = nullptr);
 
     // Implements the virtual method from ChatbotInterface
     void sendMessage(const QString& message) override;
-
-private slots:
-    // Handle API response
-    void handleAPIResponse(QNetworkReply* reply);
+    void sendFile(const QString& filePath) override;
+    void fromJS(const QString& message) override;
 
 private:
-    QString apiKey;  // API key for the chatbot service
-    QNetworkAccessManager *networkManager;  // For sending HTTP requests
-    QString getAPIKeyOrFile(const QString &apiKeyOrFile);
-
-    QJsonArray messagesArray;  // Store all messages for the conversation
+    VizData *vizData;
+    ChatbotWithAPIOpenAI *chatbotWithAPIOpenAI;
+    ChatbotWithAPILlamacpp *chatbotWithAPILlamacpp;
 };
 
 #endif // CHATBOTWITHAPI_H

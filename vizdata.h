@@ -7,13 +7,18 @@
 #include <QDateTime>
 
 #include "ascfile.h"
+#include "preference.h"
+
 class VizData
 {
 public:
 
     struct ChatbotData{
         bool isWithAPI = false;
-        QString apiKey = "";
+        QString apiProvider = "";
+        QStringList apiProviders = {"OpenAI",
+                                    "Llamacpp"};
+        QMap<QString,QStringList> apiProviderInfo;
         QString modelPath = "";
     };
 
@@ -92,6 +97,7 @@ public:
     SQLData sqlData;
     bool isDistrictReporter = false;
     ChatbotData chatbotData;
+    Preference *prefData;
 };
 
 #endif // VIZDATA_H

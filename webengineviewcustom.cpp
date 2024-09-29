@@ -11,7 +11,6 @@
 #include <QRegularExpression>
 
 #include "webengineviewcustom.h"
-#include "chatbotinterface.h"
 #include "chatbotwithapi.h"
 #include "chatbotwithmodel.h"
 
@@ -33,9 +32,9 @@ void WebEngineViewCustom::isAssistantReady(bool ready){
 void WebEngineViewCustom::initChatBot() {
     // Initialize the chatbot based on the configuration
     if (vizData->chatbotData.isWithAPI) {
-        chatbot = new ChatbotWithAPI(vizData->chatbotData.apiKey, this);
+        chatbot = new ChatbotWithAPI(vizData, this);
     } else {
-        chatbot = new ChatbotWithModel(vizData->chatbotData.modelPath, this);
+        chatbot = new ChatbotWithModel(vizData, this);
     }
 
     // Set up the WebChannel
@@ -68,7 +67,8 @@ void WebEngineViewCustom::onLoadFinished(bool ok) {
         this->page()->runJavaScript("hideDefaultMessage();", [this](const QVariant &v) {
             Q_UNUSED(v);
         });
-        chatbot->sendMessage("Remember, here is data you have to remember, called \"SQL column\" " + vizData->sqlData.tableColumnsMap["monthlysitedata"]);
+        // chatbot->sendFile(vizData->prefData->getConfigFilePath());
+        chatbot->sendMessage("These are available data of the simulation ("+QString(vizData->statsData.keys().join(","))+"), you always have to remember this");
         appendAssistantMessage("Hi, I'm your assistant, you can ask me anything...");
     } else {
         qWarning() << "Failed to load chat screen HTML.";

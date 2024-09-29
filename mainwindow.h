@@ -107,6 +107,7 @@ private:
     void processAndSaveStatsData();
     void loadStatsData(QString tableName);
     void showItemScreenNumber(int screenNumber);
+    QString getAPIKeyOrFile(const QString &apiKeyOrFile);
 
 private:
     bool all_rasters_exist = false;

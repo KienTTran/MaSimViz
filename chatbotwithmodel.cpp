@@ -3,14 +3,29 @@
 
 #include <QDebug>
 
-ChatbotWithModel::ChatbotWithModel(const QString& modelPath, QObject *parent)
-    : ChatbotInterface(parent), modelPath(modelPath) {
-    // Initialize model if needed
+ChatbotWithModel::ChatbotWithModel(VizData *vizData, QObject *parent)
+    : ChatbotInterface(parent) {
+    this->vizData = vizData;
+    modelPath = vizData->chatbotData.modelPath;
 }
 
 void ChatbotWithModel::sendMessage(const QString& message) {
     // Process the message with the local model (replace this with actual model processing)
     QString response = processMessageWithModel(message);
+    emit chatbotResponseReceived(response);
+}
+
+
+void ChatbotWithModel::fromJS(const QString& message) {
+    // Process the message with the local model (replace this with actual model processing)
+    QString response = processMessageWithModel(message);
+    emit chatbotResponseReceived(response);
+}
+
+
+void ChatbotWithModel::sendFile(const QString& filePath) {
+    // Process the message with the local model (replace this with actual model processing)
+    QString response = processMessageWithModel(filePath);
     emit chatbotResponseReceived(response);
 }
 
