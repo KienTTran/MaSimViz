@@ -50,9 +50,9 @@ void LoaderYML::loadFileSingle(const QString &filePath, VizData *vizData, std::f
     // Load YML file, first file only
     YAML::Node config = YAML::LoadFile(filePath.toStdString());
 
-    vizData->simStartDate = parseDate(config["starting_date"].as<std::string>());
-    vizData->simCompDate = parseDate(config["start_of_comparison_period"].as<std::string>());
-    vizData->simEndDate = parseDate(config["ending_date"].as<std::string>());
+    vizData->simStartDate = parseDate(config["simulation_timeframe"]["starting_date"].as<std::string>());
+    vizData->simCompDate = parseDate(config["simulation_timeframe"]["start_of_comparison_period"].as<std::string>());
+    vizData->simEndDate = parseDate(config["simulation_timeframe"]["ending_date"].as<std::string>());
 
     qDebug() << "simStartDate: " << vizData->simStartDate;
     qDebug() << "simCompDate: " << vizData->simCompDate;
