@@ -4,8 +4,11 @@
     <meta charset='UTF-8'>
     <meta name='viewport' content='width=device-width, initial-scale=1.0'>
     <link rel="stylesheet" type="text/css" href="qrc:/resources/css/chatscreen.css">
-    <!-- Include Highlight.js CSS -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="qrc:/resources/js/highlight.min.js"></script>
+    <script src="qrc:/resources/js/marked.js"></script>
+    <script src="qrc:/resources/js/dompurify.js"></script>
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
 </head>
 <body>
     <div class="theme-toggle-container">
@@ -26,20 +29,14 @@
 
 
     <div class='input-area'>
+        <button id='upload-button'><i class="fas fa-file-upload"></i></button>
         <textarea id="message-input" placeholder="Type a message..."></textarea>
-        <button id='send-button'>Send</button>
         <div id="loading-bar" style="display:none;">
             <div class="loading-spinner"></div>
         </div>
     </div>
 
     <!-- Include Highlight.js script -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
-    <script src="qrc:/resources/js/marked.js"></script>
-    <script src="qrc:/resources/js/dompurify.js"></script>
-
-    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
-
     <script>
         document.addEventListener("DOMContentLoaded", function() {
             if (typeof qt !== 'undefined' && qt.webChannelTransport) {
@@ -54,7 +51,7 @@
 
         function toggleLoading(isLoading) {
             var inputField = document.getElementById('message-input');
-            var sendButton = document.getElementById('send-button');
+            var sendButton = document.getElementById('upload-button');
             var loadingBar = document.getElementById('loading-bar');
 
             if (isLoading) {
@@ -68,22 +65,22 @@
             }
         }
 
-        document.getElementById('send-button').addEventListener('click', function() {
-            var inputField = document.getElementById('message-input');
-            var message = inputField.value;
-            if (message.trim() !== '') {
-                toggleLoading(true);  // Show loading spinner
-                window.chatbot.sendMessage(message);
-                inputField.value = '';  // Clear the textarea
-                resetTextareaHeight();  // Reset height after sending
-            }
+        document.getElementById('upload-button').addEventListener('click', function() {
+            window.chatbot.fromJS('uploadFile()');
         });
 
         document.getElementById('message-input').addEventListener('keypress', function(event) {
             if (event.key === 'Enter') {
                 if (!event.shiftKey) {  // Send the message only if Shift is not pressed
                     event.preventDefault();  // Prevent default behavior of Enter
-                    document.getElementById('send-button').click();  // Trigger the send button click
+                    var inputField = document.getElementById('message-input');
+                    var message = inputField.value;
+                    if (message.trim() !== '') {
+                        toggleLoading(true);  // Show loading spinner
+                        window.chatbot.sendMessage(message);
+                        inputField.value = '';  // Clear the textarea
+                        resetTextareaHeight();  // Reset height after sending
+                    }
                 }
             }
         });
@@ -101,7 +98,7 @@
         // Function to reset the textarea height after sending a message
         function resetTextareaHeight() {
             var inputField = document.getElementById('message-input');
-            inputField.style.height = '40px';  // Reset to initial height
+            inputField.style.height = '28px';  // Reset to initial height
         }
 
 
@@ -113,65 +110,71 @@
 
         function onMessageReceived(message) {
             toggleLoading(false);  // Hide loading spinner and show input/button again
+
+            // Iterate over dynamically created code blocks
             document.querySelectorAll('pre code').forEach((block) => {
-                // Wrap each code block in a container to add the copy button
-                var codeContainer = document.createElement('div');
-                codeContainer.className = 'code-container';
-                block.parentNode.insertBefore(codeContainer, block);
-                codeContainer.appendChild(block);
+                // Check if the block is already wrapped in a container to avoid duplication
+                if (!block.parentNode.classList.contains('code-container')) {
+                    // Create a wrapper container for the code block and copy button
+                    var codeContainer = document.createElement('div');
+                    codeContainer.className = 'code-container';
 
-                // Escape and insert the block's content safely
-                //block.innerHTML = escapeHTML(block.innerHTML);
+                    // Insert the container before the block and move the block into the container
+                    block.parentNode.insertBefore(codeContainer, block);
+                    codeContainer.appendChild(block);
 
-                // Create and append the copy button
-                var copyButton = document.createElement('button');
-                copyButton.innerText = 'Copy';
-                copyButton.className = 'copy-button';
-                codeContainer.appendChild(copyButton);
+                    // Create and append the copy button
+                    var copyButton = document.createElement('button');
+                    copyButton.innerHTML = '<i class="fas fa-copy"></i>';
+                    copyButton.className = 'copy-button';
+                    codeContainer.appendChild(copyButton);
 
-                // Highlight the code block
-                hljs.highlightElement(block);
+                    // Highlight the code block (if using highlight.js)
+                    hljs.highlightElement(block);
 
-                // Add click event to copy the code
-                copyButton.addEventListener('click', function() {
-                    var codeText = block.innerText;
+                    // Add click event to copy the code
+                    copyButton.addEventListener('click', function() {
+                        var codeText = block.innerText;
 
-                    // Check if navigator.clipboard is supported
-                    if (navigator.clipboard && navigator.clipboard.writeText) {
-                        navigator.clipboard.writeText(codeText).then(() => {
-                            copyButton.innerText = 'Copied!';
-                            setTimeout(() => {
-                                copyButton.innerText = 'Copy';
-                            }, 2000);
-                        }).catch(err => {
-                            console.error('Failed to copy: ', err);
-                        });
-                    } else {
-                        // Fallback method for unsupported browsers
-                        var textArea = document.createElement('textarea');
-                        textArea.value = codeText;
-                        document.body.appendChild(textArea);
-                        textArea.select();
-                        try {
-                            document.execCommand('copy');
-                            copyButton.innerText = 'Copied!';
-                            setTimeout(() => {
-                                copyButton.innerText = 'Copy';
-                            }, 2000);
-                        } catch (err) {
-                            console.error('Fallback: Oops, unable to copy', err);
+                        // Check if navigator.clipboard is supported
+                        if (navigator.clipboard && navigator.clipboard.writeText) {
+                            navigator.clipboard.writeText(codeText).then(() => {
+                                copyButton.innerHTML = '<i class="fas fa-check"></i>';  // Change to a check icon
+                                setTimeout(() => {
+                                    copyButton.innerHTML = '<i class="fas fa-copy"></i>';  // Revert to clipboard icon
+                                }, 2000);
+                            }).catch(err => {
+                                console.error('Failed to copy: ', err);
+                            });
+                        } else {
+                            // Fallback method for unsupported browsers
+                            var textArea = document.createElement('textarea');
+                            textArea.value = codeText;
+                            document.body.appendChild(textArea);
+                            textArea.select();
+                            try {
+                                document.execCommand('copy');
+                                copyButton.innerHTML = '<i class="fas fa-check"></i>';  // Change to a check icon
+                                setTimeout(() => {
+                                    copyButton.innerHTML = '<i class="fas fa-copy"></i>';  // Revert to clipboard icon
+                                }, 2000);
+                            } catch (err) {
+                                console.error('Fallback: Oops, unable to copy', err);
+                            }
+                            document.body.removeChild(textArea);
                         }
-                        document.body.removeChild(textArea);
-                    }
-                });
+                    });
+                }
             });
-            // Auto-scroll to the bottom of the page after new message
+
+            // Auto-scroll to the bottom of the chat container after a new message
             var chatContainer = document.getElementById('message-container');  // The container that holds the chat messages
             chatContainer.scrollTop = chatContainer.scrollHeight;  // Scroll to the bottom of the chat
 
             var inputField = document.getElementById('message-input');
             inputField.focus();
         }
+
 
         // Theme toggle functionality
         document.getElementById('theme-toggle-checkbox').addEventListener('change', function() {

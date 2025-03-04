@@ -29,6 +29,22 @@ void WebEngineViewCustom::isAssistantReady(bool ready){
     }
 }
 
+// Initialize the chat screen with HTML content
+void WebEngineViewCustom::initChatScreen() {
+    QFile file(":/resources/html/chatscreen.html");  // Use the resource path
+
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        qWarning("Couldn't open HTML file.");
+        return;
+    }
+
+    QTextStream in(&file);
+    QString htmlContent = in.readAll();
+    file.close();
+
+    this->setHtml(htmlContent); // Load the HTML content from the file
+}
+
 void WebEngineViewCustom::initChatBot() {
     // Initialize the chatbot based on the configuration
     if (vizData->chatbotData.isWithAPI) {
@@ -68,7 +84,7 @@ void WebEngineViewCustom::onLoadFinished(bool ok) {
             Q_UNUSED(v);
         });
         // chatbot->sendFile(vizData->prefData->getConfigFilePath());
-        chatbot->sendMessage("These are available data of the simulation ("+QString(vizData->statsData.keys().join(","))+"), you always have to remember this");
+        // chatbot->sendMessage("These are available data of the simulation ("+QString(vizData->statsData.keys().join(","))+"), you always have to remember this");
         appendAssistantMessage("Hi, I'm your assistant, you can ask me anything...");
     } else {
         qWarning() << "Failed to load chat screen HTML.";
@@ -76,22 +92,6 @@ void WebEngineViewCustom::onLoadFinished(bool ok) {
 
     // Optional: Disconnect the signal if you only want to handle it once
     disconnect(this, &QWebEngineView::loadFinished, this, &WebEngineViewCustom::onLoadFinished);
-}
-
-// Initialize the chat screen with HTML content
-void WebEngineViewCustom::initChatScreen() {
-    QFile file(":/resources/html/chatscreen.html");  // Use the resource path
-
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        qWarning("Couldn't open HTML file.");
-        return;
-    }
-
-    QTextStream in(&file);
-    QString htmlContent = in.readAll();
-    file.close();
-
-    this->setHtml(htmlContent); // Load the HTML content from the file
 }
 
 void WebEngineViewCustom::setVizData(VizData *vizData) {

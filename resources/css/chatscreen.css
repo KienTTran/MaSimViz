@@ -20,7 +20,7 @@ body {
     overflow-x: hidden; /* Prevent horizontal scroll for the message container */
     background-color: #1c1c1c;
     color: #ffffff;
-    max-height: calc(100vh - 40px); /* Adjusts the height to leave space for the input area */
+    max-height: calc(100vh - 35px); /* Adjusts the height to leave space for the input area */
     box-sizing: border-box;
 }
 
@@ -57,7 +57,7 @@ body {
     left: 0;
     right: 0;
     display: flex;
-    padding: 5px;
+    padding-top: 10px;
     background-color: #333333;
     border-top: 1px solid #555555;
     box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1);
@@ -76,7 +76,7 @@ body {
 .input-area textarea {
     flex: 1;
     padding: 5px;
-    border-radius: 10px;
+    border-radius: 0px;
     border: 1px solid #666666;
     font-size: 14px;
     background-color: #444444;
@@ -85,8 +85,8 @@ body {
     overflow-y: auto; /* Enable vertical scrolling when content is too long */
     overflow-x: auto; /* Enable horizontal scrolling when content is too wide */
     max-height: 200px; /* Limit the maximum height */
-    height: auto; /* Initial height */
-    min-height: 40px; /* Set a minimum height for better UX */
+    height: 28px; /* Initial height */
+    min-height: 26px; /* Set a minimum height for better UX */
     box-sizing: border-box; /* Ensure padding and borders don't affect the width/height calculations */
 }
 
@@ -97,14 +97,14 @@ body {
 
 
 .input-area button {
-    margin-left: 5px;
-    padding: 5px 10px;
+    margin-right: 5px;
     background-color: #007bff;
     color: white;
     border: none;
-    border-radius: 10px;
+    border-radius: 0px;
     cursor: pointer;
     font-size: 14px;
+    height: 26px;
 }
 
 .input-area button:hover {
@@ -223,11 +223,21 @@ input:checked + .slider:before {
     color: gray;
 }
 
+/* Style for the code container to position the button at the bottom right */
+.code-container {
+    position: relative;
+    margin-bottom: 10px;
+    padding: 10px;
+    background-color: #f3f3f3;
+    border: 1px dotted #666;
+    border-radius: 5px;
+}
+
 /* Style for the copy button */
 .copy-button {
     position: absolute;
-    top: 5px;
-    right: 5px;
+    bottom: 5px;  /* Move button to the bottom */
+    right: 5px;   /* Align button to the right */
     padding: 5px;
     background-color: #007bff;
     color: white;
@@ -237,29 +247,20 @@ input:checked + .slider:before {
     font-size: 12px;
 }
 
-.code-container {
-    position: relative;
-    margin-bottom: 10px;
-}
-
 .copy-button:hover {
     background-color: #0056b3;
 }
 
-/* Style for code block to allow horizontal scrolling */
+/* Style for the code block */
 code {
     display: -webkit-inline-box;
     white-space: pre-wrap; /* Wraps code within the block */
-    background-color: #f3f3f3;
-    padding-top: 0px;
-    padding-bottom: 0px;
-    padding-left: 2px;
-    padding-right: 2px;
-    border-radius: 5px;
-    border: 1px dotted #666
+    padding: 0px;
+    border-radius: 0px;
     overflow-x: auto; /* Enable horizontal scroll for long code lines */
     font-family: monospace; /* Set monospace font for code */
     color: #444444;
+    background-color: #f3f3f3;
 }
 
 p {
