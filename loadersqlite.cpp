@@ -109,7 +109,7 @@ void processDatabase(const QString &dbPath, int dbIndex, const QString &location
     }
 
     while (query.next()) {
-        int loc = query.value(0).toInt();
+        int loc = query.value(0).toInt() - 1;
         int month = query.value(1).toInt() - 1;
 
         if (loc >= 0 && loc < numLocations && month >= 0 && month < numMonths) {

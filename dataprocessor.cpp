@@ -202,7 +202,7 @@ void saveToCSVWorker(VizData *vizData,std::function<void(int)> progressCallback)
         int count = 0;
         for (int colNameIndex = 0; colNameIndex < colNamesSorted.size(); colNameIndex++) {
             for (int loc = 0; loc < vizData->rasterData->nLocations; loc++) {
-                for(int i = 0; i < 5; i++){
+                for(int i = 0; i < 5; i++){//for 5 values in iqr
                     int index = colNameIndex * vizData->rasterData->nLocations * 5 + loc * 5 + i;
                     writeString += QString::number(vizData->statsData[colNamesSorted[colNameIndex]].iqr[i][month][loc]) +",";
                     if((month == 0 || month == 1) && i == 0){

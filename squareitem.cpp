@@ -28,8 +28,8 @@ void SquareItem::setSelection(bool selected){
         setPen(QPen(selectedColor, 10.0));
     }
     else{
-        selectedColor = Qt::black;
-        setPen(QPen(Qt::black, 0.5));
+        selectedColor = Qt::white;
+        setPen(QPen(selectedColor, 0.5));
     }
 }
 
@@ -45,7 +45,7 @@ void SquareItem::mousePressEvent(QGraphicsSceneMouseEvent *event){
 
         setSelection(isSelected);  // Update the visual appearance
 
-        qDebug() << "[Square] select at:" << squareColRow << "color: " << selectedColor;
+        // qDebug() << "[Square] select at:" << squareColRow << "color: " << selectedColor;
 
         emit squareClicked(squareColRow,selectedColor);  // Emit signal with the column and row
     }

@@ -30,6 +30,7 @@ public:
         QMap<int, QPair<int, int>> locationPair1DTo2D;
         QMap<QPair<int, int>, int> locationPair2DTo1D;
         QMap<QPair<int, int>, int> locationPair2DTo1DDistrict;
+
     };
     //template struct
     struct StatsData{

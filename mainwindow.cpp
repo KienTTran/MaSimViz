@@ -262,6 +262,7 @@ bool MainWindow::displaySqlSelection(VizData* vizData, QWidget* parentWidget) {
     rasterSelection->setVisible(false);
     QObject::connect(rasterSelection, &QComboBox::currentTextChanged, [=](const QString &text) {
         districtRasterPath = cbItemPathMap[text];
+        qDebug() << districtRasterPath;
     });
 
     // Create a QDialogButtonBox with OK and Cancel buttons
@@ -313,7 +314,6 @@ bool MainWindow::displaySqlSelection(VizData* vizData, QWidget* parentWidget) {
     // After the dialog is accepted, you can access the selected columns for each table like this:
     if (dialog->result() == QDialog::Accepted) {
         vizData->sqlData.tableColumnsMap.clear(); // Clear the previous column map
-        qDebug() << "Dialog accepted";  // Add this for debugging
         QString locationID = locationIdEdit->text();  // Capture locationID
         QString monthID = monthIdEdit->text();        // Capture monthID
         QString reportType = reporterType->currentText(); // Capture selected combo box option
@@ -343,7 +343,6 @@ bool MainWindow::displaySqlSelection(VizData* vizData, QWidget* parentWidget) {
         return true;
     } else {
         vizData->sqlData.tableColumnsMap.clear();
-        qDebug() << "Dialog rejected";  // Add this for debugging if Cancel is pressed or dialog is closed
         return false;
     }
 }
@@ -383,7 +382,7 @@ void MainWindow::onSquareClicked(const QPoint &pos, const QColor &color)
         }
     }
 
-    qDebug() << "[Main]Square select at:" << pos << "loc: " << QPair<int,int>(pos.y(),pos.x()) << "color: " << color;
+    // qDebug() << "[Main]Square select at:" << pos << "loc: " << QPair<int,int>(pos.y(),pos.x()) << "color: " << color;
     if(screenNumber == 1){
         showChart();
     }
@@ -860,10 +859,19 @@ void MainWindow::on_cb_data_list_currentTextChanged(const QString &name)
 
 void MainWindow::showMap(QString name){
     if(screenNumber == 0){
+        scene = new QGraphicsScene(this);
+        ui->graphicsView->setSceneCustom(scene);
+        ui->graphicsView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        ui->graphicsView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        ui->graphicsView->setRenderHint(QPainter::Antialiasing);
+        ui->graphicsView->setRenderHint(QPainter::TextAntialiasing);
+        ui->graphicsView->setRenderHint(QPainter::SmoothPixmapTransform);
         LoaderRaster *loader = new LoaderRaster();
         loader->loadFileSingle(cbItemPathMap[name], vizData, nullptr, nullptr);
         qDebug() << "ncols:" << vizData->rasterData->raster->NCOLS << " nrows:" << vizData->rasterData->raster->NROWS;
         ui->wg_color_map->setColorMapMinMax(QPair<double,double>(vizData->rasterData->dataMin, vizData->rasterData->dataMax));
+        ui->graphicsView->initSquareItems();
+        ui->graphicsView->initSquareScene();
         ui->graphicsView->updateRasterData();
         showLastSquareValue();
         preference->saveWorkPath(vizData->currentDirectory);

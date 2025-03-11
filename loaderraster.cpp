@@ -31,6 +31,8 @@ void LoaderRaster::loadFileSingle(const QString &filePath, VizData *vizData, std
             vizData->rasterData->locationPair1DTo2D[locationIndex] = std::make_pair(i, j);
             vizData->rasterData->locationPair2DTo1D[QPair<int,int>(i,j)] = locationIndex;
             vizData->rasterData->locationPair2DTo1DDistrict[QPair<int,int>(i,j)] = int(vizData->rasterData->raster->data[i][j]);
+            // qDebug() << locationIndex << QPair<int,int>(i,j) << int(vizData->rasterData->raster->data[i][j]);
+
             locationIndex++;
         }
     }
