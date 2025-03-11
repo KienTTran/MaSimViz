@@ -12,8 +12,7 @@ GraphicsViewCustom::GraphicsViewCustom(QWidget *parent) {
     isPanning = false;
     lastMousePos = QPoint();
     currentZoomLevel = 1.0;
-    currentZoomFactor = 1.0;
-    cellSize = 30;
+    currentZoomFactor = zoomFactor;
     vizData = new VizData();
     squareItemList = QVector<QVector<SquareItem*>>();
 
@@ -54,11 +53,15 @@ void GraphicsViewCustom::initSquareScene(){
 
         scene()->addItem(square);
     }
-    scene()->update();
 
     //set camera to center and zoom out a bit
+    currentZoomLevel = 1.0;
+    fitInView(scene()->sceneRect(), Qt::KeepAspectRatio);
     centerOn(scene()->sceneRect().center());
-    scale(0.35, 0.35);
+    ensureVisible(scene()->sceneRect());
+
+    scene()->update();
+    qDebug() << "Init square scene";
 }
 
 void GraphicsViewCustom::setSceneCustom(QGraphicsScene *scene){
@@ -69,6 +72,10 @@ void GraphicsViewCustom::resizeEvent(QResizeEvent *event) {
     if(clearButton){
         clearButton->setGeometry(this->width() - clearButton->width() - 10, 10, 80, 40);
     }
+    fitInView(scene()->sceneRect(), Qt::KeepAspectRatio);
+    centerOn(scene()->sceneRect().center());
+    ensureVisible(scene()->sceneRect());
+    scene()->update();
     QGraphicsView::resizeEvent(event);
 }
 
@@ -136,21 +143,18 @@ void GraphicsViewCustom::wheelEvent(QWheelEvent *event) {
     // otherwise, do yours
     else
     {
-        const double zoomFactor = 1.05;  // Smaller zoom factor for smooth zoom
-        const int maxZoomLevel = 500;  // Maximum zoom level
-        const int minZoomLevel = -500;  // Minimum zoom level
         isPanning = false;  // Disable panning while zooming
         if (event->angleDelta().y() > 0) {
             // Zoom in
             if (currentZoomLevel < maxZoomLevel) {
                 currentZoomLevel++;
-                scale(zoomFactor, zoomFactor);
+                scale(currentZoomFactor, currentZoomFactor);
             }
         } else {
             // Zoom out
             if (currentZoomLevel > minZoomLevel) {
                 currentZoomLevel--;
-                scale(1.0 / zoomFactor, 1.0 / zoomFactor);
+                scale(1.0 / currentZoomFactor, 1.0 / currentZoomFactor);
             }
         }
     }
@@ -167,7 +171,7 @@ void GraphicsViewCustom::adjustZoomLevel(int zoomLevel){
 }
 
 void GraphicsViewCustom::onSquareClicked(const QPoint &pos, const QColor &color) {
-    qDebug() << "[Graphics] Square clicked at: " << pos << "Color: " << color;
+    // qDebug() << "[Graphics] Square clicked at: " << pos << "Color: " << color;
 
     // Check if a square is selected
     if (!clearButton) {
@@ -242,11 +246,13 @@ void GraphicsViewCustom::updateRasterDataMedian(const QString colName, int month
         row = vizData->rasterData->locationPair1DTo2D[loc].first;
         col = vizData->rasterData->locationPair1DTo2D[loc].second;
         if(vizData->isDistrictReporter){
-            int dictrictLoc = vizData->rasterData->locationPair2DTo1DDistrict[QPair<int,int>(row,col)];
+            int dictrictLoc = vizData->rasterData->locationPair2DTo1DDistrict[QPair<int,int>(row,col)] - 1;
             value = vizData->statsData[colName].iqr[0][month][dictrictLoc];
+            // qDebug() << "[Graphics]District colrow " << QPair<int,int>(row,col) << " dictrictLoc " << dictrictLoc;
         }
         else{
             value = vizData->statsData[colName].iqr[0][month][loc];
+            // qDebug() << "[Graphics]District colrow " << QPair<int,int>(row,col) << " dictrictLoc " << loc;
         }
 
         // Normalize the value to range [0, 1] based on min and max values

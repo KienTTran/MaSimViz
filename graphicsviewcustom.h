@@ -49,9 +49,12 @@ private:
     QPoint lastMousePos;  // Last recorded mouse position
     int currentZoomLevel;  // Current zoom level to limit zooming range
     double currentZoomFactor;  // Current zoom factor to adjust the view
-    int cellSize;
     QVector<QVector<SquareItem*>> squareItemList;
     QPushButton *clearButton = nullptr;
+
+    const double zoomFactor = 1.05;  // Smaller zoom factor for smooth zoom
+    const int maxZoomLevel = 500;  // Maximum zoom level
+    const int minZoomLevel = 0;  // Minimum zoom level
 
 public slots:
     void onSquareClicked(const QPoint &pos, const QColor &color);

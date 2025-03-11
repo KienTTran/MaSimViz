@@ -15,12 +15,16 @@
 #include <atomic>
 #include <tuple>
 
+#include "preference.h"
 #include "loader.h"
 #include "vizdata.h"
 #include "graphicsviewcustom.h"
 #include "glwidgetcustom.h"
 #include "dataprocessor.h"
 #include "chartcustom.h"
+#include "chatbotwithapi.h"
+#include "chatbotwithmodel.h"
+#include "webengineviewcustom.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -38,6 +42,7 @@ public:
 
 protected:
     void resizeEvent(QResizeEvent *event) override;
+    void closeEvent(QCloseEvent *event) override;
 
 private slots:
     void on_bt_auto_load_folder_clicked();
@@ -60,12 +65,18 @@ private slots:
 
     void on_slider_progress_sliderReleased();
 
+    void on_bt_chat_setting_clicked();
+
+    void on_chb_assist_clicked(bool checked);
+
 public slots:
     void onSquareClicked(const QPoint &pos, const QColor &color);
+    void onChatbotReplyReceived(QString response);
 
 private:
     Ui::MainWindow *ui;
     QString statusMessage = "";
+    Preference *preference;
     Loader *loader;
     QStringList ascFileList;
     QStringList dbFileList;
@@ -76,9 +87,12 @@ private:
     VizData *vizData;
     DataProcessor *dataProcessor;
     ChartCustom *chart;
+    ChatbotWithAPI *onlineChatbot;
+    ChatbotWithModel *offlineChatbot;
 
 private:
-    bool displaySqlDataInDialogWithChecklist(VizData* vizData, QWidget* parentWidget = nullptr);
+    bool displaySqlSelection(VizData* vizData, QWidget* parentWidget = nullptr);
+    bool displayChatbotSetting(VizData* vizData, QWidget* parentWidget = nullptr);
     void checkDirectory(QString path);
     void disabeInputWidgets();
     void enableInputWidgets(int screenNumber);
@@ -93,6 +107,7 @@ private:
     void processAndSaveStatsData();
     void loadStatsData(QString tableName);
     void showItemScreenNumber(int screenNumber);
+    QString getAPIKeyOrFile(const QString &apiKeyOrFile);
 
 private:
     bool all_rasters_exist = false;
@@ -105,5 +120,7 @@ private:
 
 signals:
     void addClearButton(bool show);
+    void appendChatBotText(QString text);
+    void isAssisantReady(bool ready);
 };
 #endif // MAINWINDOW_H

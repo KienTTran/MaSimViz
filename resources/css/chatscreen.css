@@ -1,0 +1,272 @@
+body {
+    font-family: Arial, sans-serif;
+    background-color: #1c1c1c;
+    color: #ffffff;
+    margin: 0;
+    padding: 0;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.message-container {
+    flex: 1;
+    padding: 5px;
+    padding-top: 30px;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden; /* Prevent horizontal scroll for the message container */
+    background-color: #1c1c1c;
+    color: #ffffff;
+    max-height: calc(100vh - 35px); /* Adjusts the height to leave space for the input area */
+    box-sizing: border-box;
+}
+
+.user-message, .assistant-message {
+    max-width: 70%;
+    margin-top: 2px;
+    margin-bottom: 2px;
+    margin-left: 5px;
+    margin-right: 5px;
+    padding-top: 2px;
+    padding-bottom: 2px;
+    padding-left: 5px;
+    padding-right: 5px;
+    border-radius: 10px;
+    word-wrap: break-word;
+    font-size: 14px;
+}
+
+.user-message {
+    align-self: flex-end;
+    background-color: #007bff;
+    color: white;
+}
+
+.assistant-message {
+    align-self: flex-start;
+    background-color: #444444;
+    color: white;
+}
+
+.input-area {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    padding-top: 10px;
+    background-color: #333333;
+    border-top: 1px solid #555555;
+    box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1);
+}
+
+/*.input-area input {
+    flex: 1;
+    padding: 5px;
+    border-radius: 10px;
+    border: 1px solid #666666;
+    font-size: 14px;
+    background-color: #444444;
+    color: #ffffff;
+}*/
+
+.input-area textarea {
+    flex: 1;
+    padding: 5px;
+    border-radius: 0px;
+    border: 1px solid #666666;
+    font-size: 14px;
+    background-color: #444444;
+    color: #ffffff;
+    resize: none; /* Disable manual resizing */
+    overflow-y: auto; /* Enable vertical scrolling when content is too long */
+    overflow-x: auto; /* Enable horizontal scrolling when content is too wide */
+    max-height: 200px; /* Limit the maximum height */
+    height: 28px; /* Initial height */
+    min-height: 26px; /* Set a minimum height for better UX */
+    box-sizing: border-box; /* Ensure padding and borders don't affect the width/height calculations */
+}
+
+/* Ensure the input area adapts to the expanding height */
+.input-area {
+    align-items: flex-end;
+}
+
+
+.input-area button {
+    margin-right: 5px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 0px;
+    cursor: pointer;
+    font-size: 14px;
+    height: 26px;
+}
+
+.input-area button:hover {
+    background-color: #0056b3;
+}
+
+/* Loading Spinner */
+.loading-spinner {
+    border: 4px solid rgba(255, 255, 255, 0.3);
+    border-top: 4px solid #007bff;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+#loading-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+}
+
+/* Theme Toggle Switch */
+.theme-toggle-container {
+    position: fixed;
+    top: 10px;
+    left: 13px;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    z-index: 1000;
+}
+
+.theme-toggle-label {
+    margin-left: 5px;
+    color: gray;
+    font-size: 14px;
+}
+
+.theme-toggle {
+    position: relative;
+    width: 30px;
+    height: 17px;
+}
+
+.theme-toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: 0.4s;
+    border-radius: 17px;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 13px;
+    width: 13px;
+    left: 2px;
+    bottom: 2px;
+    background-color: white;
+    transition: 0.4s;
+    border-radius: 50%;
+}
+
+input:checked + .slider {
+    background-color: #007bff;
+}
+
+input:checked + .slider:before {
+    transform: translateX(13px);
+}
+
+/* Light theme overrides */
+.light-theme body {
+    background-color: #f5f5f5;
+    color: #000000;
+}
+
+.light-theme .message-container {
+    background-color: #f5f5f5;
+    color: #000000;
+}
+
+.light-theme .assistant-message {
+    background-color: #e1e1e1;
+    color: black;
+}
+
+.light-theme .input-area {
+    background-color: #ffffff;
+    border-top: 1px solid #ddd;
+}
+
+.light-theme .input-area input {
+    background-color: #ffffff;
+    color: #000000;
+}
+
+.light-theme .theme-toggle-label {
+    color: gray;
+}
+
+/* Style for the code container to position the button at the bottom right */
+.code-container {
+    position: relative;
+    margin-bottom: 10px;
+    padding: 10px;
+    background-color: #f3f3f3;
+    border: 1px dotted #666;
+    border-radius: 5px;
+}
+
+/* Style for the copy button */
+.copy-button {
+    position: absolute;
+    bottom: 5px;  /* Move button to the bottom */
+    right: 5px;   /* Align button to the right */
+    padding: 5px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.copy-button:hover {
+    background-color: #0056b3;
+}
+
+/* Style for the code block */
+code {
+    display: -webkit-inline-box;
+    white-space: pre-wrap; /* Wraps code within the block */
+    padding: 0px;
+    border-radius: 0px;
+    overflow-x: auto; /* Enable horizontal scroll for long code lines */
+    font-family: monospace; /* Set monospace font for code */
+    color: #444444;
+    background-color: #f3f3f3;
+}
+
+p {
+    display: block;
+    margin-block-start: 2px;
+    margin-block-end: 2px;
+    margin-inline-start: 5px;
+    margin-inline-end: 5px;
+}

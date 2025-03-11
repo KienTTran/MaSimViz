@@ -33,12 +33,20 @@
 #include "loadersqlite.h"
 #include "loaderyml.h"
 #include "loaderraster.h"
+#include "chatbotwithapi.h"
 
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
 {
+    // Initialize preferences
+    preference = new Preference("./config.ini");
+
+    // Load window size and position on startup
+    resize(preference->loadWindowSize());
+    move(preference->loadWindowPosition());
+
     ui->setupUi(this);
     scene = new QGraphicsScene(this);
     ui->graphicsView->setSceneCustom(scene);
@@ -49,6 +57,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->graphicsView->setRenderHint(QPainter::SmoothPixmapTransform);
 
     vizData = new VizData();
+    vizData->prefData = preference;
     ui->graphicsView->setVizData(vizData);
 
     ui->le_sim_path->setText("");
@@ -64,8 +73,17 @@ MainWindow::MainWindow(QWidget *parent)
 
     ui->wg_color_map->setHidden(true);
 
+    ui->wev_chatbox->page()->setBackgroundColor(Qt::transparent);
+    ui->wev_chatbox->setMinimumWidth(width()/3);
+    ui->wev_chatbox->initChatScreen();
+    ui->wev_chatbox->setEnabled(false);
+    ui->wev_chatbox->setContextMenuPolicy(Qt::ContextMenuPolicy::NoContextMenu);
+    ui->wev_chatbox->setHidden(true);
+    ui->bt_chat_setting->setHidden(true);
+
     QObject::connect(ui->graphicsView, &GraphicsViewCustom::squareClickedOnScene, this, &MainWindow::onSquareClicked);
     QObject::connect(this, &MainWindow::addClearButton, ui->graphicsView, &GraphicsViewCustom::showClearButton);
+    QObject::connect(this,&MainWindow::isAssisantReady, ui->wev_chatbox, &WebEngineViewCustom::isAssistantReady);
 
     hideMedianItems();
 }
@@ -77,7 +95,20 @@ MainWindow::~MainWindow()
 
 void MainWindow::resizeEvent(QResizeEvent *event)
 {
+    ui->graphicsView->fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
+    ui->wev_chatbox->setMinimumWidth(width()/3);
     QMainWindow::resizeEvent(event);
+}
+
+void MainWindow::closeEvent(QCloseEvent *event) {
+    // Save window size and position
+    preference->saveWindowSize(size());
+    preference->saveWindowPosition(pos());
+
+    // Optionally, save other preferences like paths here
+
+    // Call the base class implementation
+    QMainWindow::closeEvent(event);
 }
 
 QLayout* widgetToLayout(QWidget* w){
@@ -104,7 +135,7 @@ QStringList searchForFilesWithPattern(const QString &directoryPath, QString patt
     return foundFiles;
 }
 
-bool MainWindow::displaySqlDataInDialogWithChecklist(VizData* vizData, QWidget* parentWidget) {
+bool MainWindow::displaySqlSelection(VizData* vizData, QWidget* parentWidget) {
     // Create the dialog
     QDialog* dialog = new QDialog(parentWidget);
     dialog->setWindowTitle("Select columns to plot");
@@ -231,6 +262,7 @@ bool MainWindow::displaySqlDataInDialogWithChecklist(VizData* vizData, QWidget* 
     rasterSelection->setVisible(false);
     QObject::connect(rasterSelection, &QComboBox::currentTextChanged, [=](const QString &text) {
         districtRasterPath = cbItemPathMap[text];
+        qDebug() << districtRasterPath;
     });
 
     // Create a QDialogButtonBox with OK and Cancel buttons
@@ -282,7 +314,6 @@ bool MainWindow::displaySqlDataInDialogWithChecklist(VizData* vizData, QWidget* 
     // After the dialog is accepted, you can access the selected columns for each table like this:
     if (dialog->result() == QDialog::Accepted) {
         vizData->sqlData.tableColumnsMap.clear(); // Clear the previous column map
-        qDebug() << "Dialog accepted";  // Add this for debugging
         QString locationID = locationIdEdit->text();  // Capture locationID
         QString monthID = monthIdEdit->text();        // Capture monthID
         QString reportType = reporterType->currentText(); // Capture selected combo box option
@@ -312,7 +343,6 @@ bool MainWindow::displaySqlDataInDialogWithChecklist(VizData* vizData, QWidget* 
         return true;
     } else {
         vizData->sqlData.tableColumnsMap.clear();
-        qDebug() << "Dialog rejected";  // Add this for debugging if Cancel is pressed or dialog is closed
         return false;
     }
 }
@@ -352,7 +382,7 @@ void MainWindow::onSquareClicked(const QPoint &pos, const QColor &color)
         }
     }
 
-    qDebug() << "[Main]Square select at:" << pos << "loc: " << QPair<int,int>(pos.y(),pos.x()) << "color: " << color;
+    // qDebug() << "[Main]Square select at:" << pos << "loc: " << QPair<int,int>(pos.y(),pos.x()) << "color: " << color;
     if(screenNumber == 1){
         showChart();
     }
@@ -458,7 +488,7 @@ void MainWindow::on_bt_process_clicked()
         loader = new LoaderSQLite();
         loader->loadFileSingle(dbFileList[0], vizData, nullptr, nullptr);
 
-        if(!displaySqlDataInDialogWithChecklist(vizData, this)){
+        if(!displaySqlSelection(vizData, this)){
             return;
         }
 
@@ -500,6 +530,8 @@ void MainWindow::on_bt_process_clicked()
                                    //         qDebug() << "Data:" << colName << "j:" << vizData->statsData[colName].data[j][150][150];
                                    //     }
                                    // }
+
+                                   preference->saveDBPaths(dbFileList);
 
                                    QString tableName = vizData->sqlData.tableColumnsMap.keys().last();
                                    int tableIndex = vizData->sqlData.dbTables.indexOf(tableName);
@@ -827,19 +859,264 @@ void MainWindow::on_cb_data_list_currentTextChanged(const QString &name)
 
 void MainWindow::showMap(QString name){
     if(screenNumber == 0){
+        scene = new QGraphicsScene(this);
+        ui->graphicsView->setSceneCustom(scene);
+        ui->graphicsView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        ui->graphicsView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        ui->graphicsView->setRenderHint(QPainter::Antialiasing);
+        ui->graphicsView->setRenderHint(QPainter::TextAntialiasing);
+        ui->graphicsView->setRenderHint(QPainter::SmoothPixmapTransform);
         LoaderRaster *loader = new LoaderRaster();
         loader->loadFileSingle(cbItemPathMap[name], vizData, nullptr, nullptr);
         qDebug() << "ncols:" << vizData->rasterData->raster->NCOLS << " nrows:" << vizData->rasterData->raster->NROWS;
         ui->wg_color_map->setColorMapMinMax(QPair<double,double>(vizData->rasterData->dataMin, vizData->rasterData->dataMax));
+        ui->graphicsView->initSquareItems();
+        ui->graphicsView->initSquareScene();
         ui->graphicsView->updateRasterData();
         showLastSquareValue();
+        preference->saveWorkPath(vizData->currentDirectory);
     }
     if(screenNumber == 1){
         qDebug() << "Column name changed to:" << name;
         currentColNameShown = name;
         updateMedianMap();
         showChart();
+    }
+}
 
+QString MainWindow::getAPIKeyOrFile(const QString &apiKeyOrFile) {
+    QFileInfo fileInfo(apiKeyOrFile);
+
+    // Check if the input is a valid file path
+    if (fileInfo.exists() && fileInfo.isFile()) {
+        QFile file(apiKeyOrFile);
+        if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            QTextStream in(&file);
+            QString apiKey = in.readAll().trimmed();  // Read the key from the file and trim whitespace
+            file.close();
+            return apiKey;
+        } else {
+            qDebug() << "Could not open the API key file.";
+            return QString();
+        }
+    } else {
+        // If it's not a file, return the input directly (assuming it's a key string)
+        return apiKeyOrFile;
+    }
+}
+
+bool MainWindow::displayChatbotSetting(VizData* vizData, QWidget* parentWidget){
+
+    // Create dialog
+    QDialog* dialog = new QDialog(parentWidget);
+    dialog->setWindowTitle("Chatbot Settings");
+    dialog->setWindowFlags(Qt::Dialog | Qt::CustomizeWindowHint | Qt::WindowTitleHint);
+    dialog->setFixedSize(QSize(400, 250)); // Set a fixed size for the dialog
+
+    // Create form layout
+    QFormLayout *formLayout = new QFormLayout(dialog);
+
+    // Chatbot type combobox
+    QLabel *labelType = new QLabel("Select Chatbot Type:", dialog);
+    QComboBox *cbChatbotType = new QComboBox(dialog);
+    cbChatbotType->addItem("Using API");
+    cbChatbotType->addItem("Using local model");
+
+    // Online input field for API key or path
+    QLabel *labelApiprovider = new QLabel("Select API Provider:", dialog);
+    QComboBox *cbAPIProvider = new QComboBox(dialog);
+    for(const QString &apiProvider : vizData->chatbotData.apiProviders){
+        cbAPIProvider->addItem(apiProvider);
+    }
+    QLabel *labelApiURL = new QLabel("Enter API URL:", dialog);
+    QLineEdit *editApiURL = new QLineEdit(dialog);
+    QLabel *labelApiKey = new QLabel("Enter API Key or Path:", dialog);
+
+    // Create horizontal layout for API key and browse button
+    QHBoxLayout *apiKeyLayout = new QHBoxLayout();
+    QLineEdit *editApiKey = new QLineEdit(dialog);
+    QPushButton *btnBrowse = new QPushButton("Browse", dialog);  // Create the Browse button
+    apiKeyLayout->addWidget(editApiKey);
+    apiKeyLayout->addWidget(btnBrowse);
+
+    // Offline combobox for model selection
+    QLabel *labelModel = new QLabel("Select Model:", dialog);
+    QComboBox *cbModel = new QComboBox(dialog);
+    cbModel->addItem("Model A");
+    cbModel->addItem("Model B");
+    cbModel->addItem("Model C");
+
+    // Add OK and Cancel buttons
+    QHBoxLayout *buttonLayout = new QHBoxLayout();
+    QPushButton *btnOk = new QPushButton("OK", dialog);
+    QPushButton *btnCancel = new QPushButton("Cancel", dialog);
+    buttonLayout->addWidget(btnOk);
+    buttonLayout->addWidget(btnCancel);
+
+    // Load saved settings
+    QMap<QString,QStringList> apiProviderInfo = preference->loadChatbotAPIInfo();
+    QString apiProvider = preference->loadChatbotAPIProvider(vizData->chatbotData.apiProviders[0]);
+
+    editApiURL->setText(apiProviderInfo[apiProvider].size() > 0 ? apiProviderInfo[apiProvider][0] : "");
+    editApiKey->setText(apiProviderInfo[apiProvider].size() > 0 ? apiProviderInfo[apiProvider][1] : "");
+    cbAPIProvider->setCurrentText(apiProvider);
+    cbModel->setCurrentText(preference->loadModelPath(""));
+
+    // Initially show API key input and hide model combobox
+    labelApiprovider->setVisible(true);
+    cbAPIProvider->setVisible(true);
+    labelApiURL->setVisible(true);
+    editApiURL->setVisible(true);
+    labelApiKey->setVisible(true);
+    editApiKey->setVisible(true);
+    labelModel->setVisible(false);
+    cbModel->setVisible(false);
+
+    connect(cbAPIProvider, &QComboBox::currentTextChanged, [&](const QString &text) {
+        vizData->chatbotData.apiProvider = text;
+        editApiURL->setText(apiProviderInfo[text].size() > 0 ? apiProviderInfo[text][0] : "");
+        editApiKey->setText(apiProviderInfo[text].size() > 0 ? apiProviderInfo[text][1] : "");
+    });
+
+    // Update visibility based on chatbot type selection
+    connect(cbChatbotType, &QComboBox::currentIndexChanged, [&]() {
+        if (cbChatbotType->currentText() == "Using API") {
+            labelApiprovider->setVisible(true);
+            cbAPIProvider->setVisible(true);
+            labelApiURL->setVisible(true);
+            editApiURL->setVisible(true);
+            labelApiKey->setVisible(true);
+            editApiKey->setVisible(true);
+            labelModel->setVisible(false);
+            cbModel->setVisible(false);
+        } else if (cbChatbotType->currentText() == "Using local model") {
+            labelApiprovider->setVisible(false);
+            cbAPIProvider->setVisible(false);
+            labelApiURL->setVisible(false);
+            editApiURL->setVisible(false);
+            labelApiKey->setVisible(false);
+            editApiKey->setVisible(false);
+            labelModel->setVisible(true);
+            cbModel->setVisible(true);
+        }
+    });
+
+    // Connect the Browse button to open a file dialog and set the selected file path to editApiKey
+    connect(btnBrowse, &QPushButton::clicked, [&]() {
+        QString filePath = QFileDialog::getOpenFileName(dialog, "Select API Key or Path");
+        if (!filePath.isEmpty()) {
+            editApiKey->setText(filePath);  // Set the selected file path in editApiKey
+        }
+    });
+
+    // Add widgets to form layout
+    formLayout->addRow(labelType, cbChatbotType);
+    formLayout->addRow(labelApiprovider, cbAPIProvider);
+    formLayout->addRow(labelApiURL, editApiURL);
+    formLayout->addRow(labelApiKey, apiKeyLayout);  // Add the API key layout (edit and button)
+    formLayout->addRow(labelModel, cbModel);
+    formLayout->addRow(buttonLayout);
+    formLayout->setLabelAlignment(Qt::AlignmentFlag::AlignLeft);
+    formLayout->setFormAlignment(Qt::AlignmentFlag::AlignRight);
+    formLayout->setFieldGrowthPolicy(QFormLayout::FieldGrowthPolicy::AllNonFixedFieldsGrow);
+
+    // Handle OK button click
+    connect(btnOk, &QPushButton::clicked, [&]() {
+        if (cbChatbotType->currentText() == "Using API") {
+            vizData->chatbotData.isWithAPI = true;
+        } else {  // Store selected offline model
+            vizData->chatbotData.isWithAPI = false;
+        }
+        dialog->accept();  // Close dialog with OK
+    });
+
+    // Handle Cancel button click
+    connect(btnCancel, &QPushButton::clicked, [&]() {
+        dialog->reject();  // Close dialog with Cancel
+    });
+
+    // Show the dialog and wait for user interaction
+    if (dialog->exec() == QDialog::Accepted) {
+        // Settings confirmed, you can now use `chatBotType`, `chatBotOnlineAPIKeyOrPath`, and `chatBotOfflineModelPath`
+        if (vizData->chatbotData.isWithAPI) {
+            if(!editApiKey->text().isEmpty() || !editApiURL->text().isEmpty()){
+                // Check if the URL is valid
+                QUrl url(editApiURL->text());
+                if (!url.isValid()) {
+                    QMessageBox::information(this, "Information", "Invalid API URL.");
+                    return false;
+                }
+                if(getAPIKeyOrFile(editApiKey->text()).isEmpty()){
+                    QMessageBox::information(this,"Information", "Invalid Key path or empty key.");
+                    return false;
+                }
+                vizData->chatbotData.apiProviderInfo[cbAPIProvider->currentText()] = {editApiURL->text(),
+                                                                                      editApiKey->text(),
+                                                                                      getAPIKeyOrFile(editApiKey->text())};
+                vizData->chatbotData.apiProvider = cbAPIProvider->currentText();
+                preference->saveChatbotAPIProvider(vizData->chatbotData.apiProvider);
+                preference->saveChatbotAPIInfo(vizData->chatbotData.apiProviderInfo);
+                qDebug() << "Chatbot type: Using API, API URL:" << vizData->chatbotData.apiProviderInfo[cbAPIProvider->currentText()][0];
+                qDebug() << "Chatbot type: Using API, API Key/Path:" << vizData->chatbotData.apiProviderInfo[cbAPIProvider->currentText()][2];
+                return true;
+            }
+            else{
+                qWarning() << "No API URL or Key/Path provided";
+                return false;
+            }
+        } else {
+            if(!cbModel->currentText().isEmpty()){
+                vizData->chatbotData.modelPath = cbModel->currentText();
+                preference->saveModelPath(vizData->chatbotData.modelPath);
+                qDebug() << "Chatbot type: Using model, Selected Model:" << cbModel->currentText();
+                return true;
+            }
+            else{
+                qWarning() << "No model selected";
+                return false;
+            }
+        }
+    } else {
+        // User canceled the settings dialog
+        return false;
+    }
+    return false;
+}
+
+
+void MainWindow::onChatbotReplyReceived(QString response){
+    emit appendChatBotText(response);
+}
+
+void MainWindow::on_bt_chat_setting_clicked()
+{
+    if(displayChatbotSetting(vizData, this)){
+        ui->wev_chatbox->setVizData(vizData);
+        emit isAssisantReady(true);
+        if(ui->wev_chatbox->isHidden()){
+            ui->wev_chatbox->setHidden(false);
+        }
+    }
+}
+
+
+void MainWindow::on_chb_assist_clicked(bool checked)
+{
+    if(checked){
+        ui->bt_chat_setting->setHidden(false);
+        if(ui->wev_chatbox->isHidden()){
+            ui->wev_chatbox->setHidden(false);
+        }
+
+        // QWebEngineView* devToolsView = new QWebEngineView();
+        // ui->wev_chatbox->page()->setDevToolsPage(devToolsView->page());
+        // devToolsView->show();
+    }
+    else{
+        ui->bt_chat_setting->setHidden(true);
+        if(!ui->wev_chatbox->isHidden()){
+            ui->wev_chatbox->setHidden(true);
+        }
     }
 }
 

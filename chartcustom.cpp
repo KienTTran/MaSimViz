@@ -76,10 +76,12 @@ void ChartCustom::plotDataMedianMultipleLocations(QString colName, QMap<QPair<in
         QColor color = locInfo[colrow];
 
         if(vizData->isDistrictReporter){
-            locIndex = vizData->rasterData->locationPair2DTo1DDistrict[colrow];
+            locIndex = vizData->rasterData->locationPair2DTo1DDistrict[colrow] - 1;
+            // qDebug() << "[Chart]District colrow " << colrow << " locIndex " << locIndex;
         }
         else{
             locIndex = vizData->rasterData->locationPair2DTo1D[colrow];
+            // qDebug() << "[Chart]Not District colrow " << colrow << " locIndex " << locIndex;
         }
 
         // Create a QLineSeries object for the current location's median line

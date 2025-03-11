@@ -7,9 +7,21 @@
 #include <QDateTime>
 
 #include "ascfile.h"
+#include "preference.h"
+
 class VizData
 {
 public:
+
+    struct ChatbotData{
+        bool isWithAPI = false;
+        QString apiProvider = "";
+        QStringList apiProviders = {"OpenAI",
+                                    "Llamacpp"};
+        QMap<QString,QStringList> apiProviderInfo;
+        QString modelPath = "";
+    };
+
     struct RasterData{
         AscFile *raster;
         int nLocations;
@@ -18,6 +30,7 @@ public:
         QMap<int, QPair<int, int>> locationPair1DTo2D;
         QMap<QPair<int, int>, int> locationPair2DTo1D;
         QMap<QPair<int, int>, int> locationPair2DTo1DDistrict;
+
     };
     //template struct
     struct StatsData{
@@ -84,6 +97,8 @@ public:
     QMap<QString,StatsData> statsData;
     SQLData sqlData;
     bool isDistrictReporter = false;
+    ChatbotData chatbotData;
+    Preference *prefData;
 };
 
 #endif // VIZDATA_H

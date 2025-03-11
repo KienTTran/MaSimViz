@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+    <meta charset='UTF-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+    <link rel="stylesheet" type="text/css" href="qrc:/resources/css/chatscreen.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="qrc:/resources/js/highlight.min.js"></script>
+    <script src="qrc:/resources/js/marked.js"></script>
+    <script src="qrc:/resources/js/dompurify.js"></script>
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+</head>
+<body>
+    <div class="theme-toggle-container">
+        <label class="theme-toggle">
+            <input type="checkbox" id="theme-toggle-checkbox">
+            <span class="slider"></span>
+        </label>
+        <span class="theme-toggle-label" id="theme-label">Dark</span>
+    </div>
+
+    <div class='message-container'>
+        <div class="assistant-message" id="default-message">
+            Please use setting to enable assistant!
+        </div>
+
+        <div class='message-container' id='message-container'></div>
+    </div>
+
+
+    <div class='input-area'>
+        <button id='upload-button'><i class="fas fa-file-upload"></i></button>
+        <textarea id="message-input" placeholder="Type a message..."></textarea>
+        <div id="loading-bar" style="display:none;">
+            <div class="loading-spinner"></div>
+        </div>
+    </div>
+
+    <!-- Include Highlight.js script -->
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            if (typeof qt !== 'undefined' && qt.webChannelTransport) {
+                new QWebChannel(qt.webChannelTransport, function(channel) {
+                    window.chatbot = channel.objects.chatbot;
+                    console.warn("WebChannel initialized.");
+                });
+            } else {
+                console.warn("QWebChannel is not available. Some functionalities may not work.");
+            }
+        });
+
+        function toggleLoading(isLoading) {
+            var inputField = document.getElementById('message-input');
+            var sendButton = document.getElementById('upload-button');
+            var loadingBar = document.getElementById('loading-bar');
+
+            if (isLoading) {
+                inputField.style.display = 'none';
+                sendButton.style.display = 'none';
+                loadingBar.style.display = 'flex';
+            } else {
+                inputField.style.display = 'block';
+                sendButton.style.display = 'block';
+                loadingBar.style.display = 'none';
+            }
+        }
+
+        document.getElementById('upload-button').addEventListener('click', function() {
+            window.chatbot.fromJS('uploadFile()');
+        });
+
+        document.getElementById('message-input').addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                if (!event.shiftKey) {  // Send the message only if Shift is not pressed
+                    event.preventDefault();  // Prevent default behavior of Enter
+                    var inputField = document.getElementById('message-input');
+                    var message = inputField.value;
+                    if (message.trim() !== '') {
+                        toggleLoading(true);  // Show loading spinner
+                        window.chatbot.sendMessage(message);
+                        inputField.value = '';  // Clear the textarea
+                        resetTextareaHeight();  // Reset height after sending
+                    }
+                }
+            }
+        });
+
+        // Auto-resize textarea on input
+        document.getElementById('message-input').addEventListener('input', function() {
+            this.style.height = 'auto';  // Reset the height so it can shrink on deletion
+            if (this.scrollHeight <= 200) { // Auto-resize up to 200px max height
+                this.style.height = (this.scrollHeight) + 'px';
+            } else {
+                this.style.height = '200px';  // Set to max height, and enable scrolling
+            }
+        });
+
+        // Function to reset the textarea height after sending a message
+        function resetTextareaHeight() {
+            var inputField = document.getElementById('message-input');
+            inputField.style.height = '28px';  // Reset to initial height
+        }
+
+
+        function escapeHTML(str) {
+            var div = document.createElement('div');
+            div.appendChild(document.createTextNode(str));
+            return div.innerHTML;
+        }
+
+        function onMessageReceived(message) {
+            toggleLoading(false);  // Hide loading spinner and show input/button again
+
+            // Iterate over dynamically created code blocks
+            document.querySelectorAll('pre code').forEach((block) => {
+                // Check if the block is already wrapped in a container to avoid duplication
+                if (!block.parentNode.classList.contains('code-container')) {
+                    // Create a wrapper container for the code block and copy button
+                    var codeContainer = document.createElement('div');
+                    codeContainer.className = 'code-container';
+
+                    // Insert the container before the block and move the block into the container
+                    block.parentNode.insertBefore(codeContainer, block);
+                    codeContainer.appendChild(block);
+
+                    // Create and append the copy button
+                    var copyButton = document.createElement('button');
+                    copyButton.innerHTML = '<i class="fas fa-copy"></i>';
+                    copyButton.className = 'copy-button';
+                    codeContainer.appendChild(copyButton);
+
+                    // Highlight the code block (if using highlight.js)
+                    hljs.highlightElement(block);
+
+                    // Add click event to copy the code
+                    copyButton.addEventListener('click', function() {
+                        var codeText = block.innerText;
+
+                        // Check if navigator.clipboard is supported
+                        if (navigator.clipboard && navigator.clipboard.writeText) {
+                            navigator.clipboard.writeText(codeText).then(() => {
+                                copyButton.innerHTML = '<i class="fas fa-check"></i>';  // Change to a check icon
+                                setTimeout(() => {
+                                    copyButton.innerHTML = '<i class="fas fa-copy"></i>';  // Revert to clipboard icon
+                                }, 2000);
+                            }).catch(err => {
+                                console.error('Failed to copy: ', err);
+                            });
+                        } else {
+                            // Fallback method for unsupported browsers
+                            var textArea = document.createElement('textarea');
+                            textArea.value = codeText;
+                            document.body.appendChild(textArea);
+                            textArea.select();
+                            try {
+                                document.execCommand('copy');
+                                copyButton.innerHTML = '<i class="fas fa-check"></i>';  // Change to a check icon
+                                setTimeout(() => {
+                                    copyButton.innerHTML = '<i class="fas fa-copy"></i>';  // Revert to clipboard icon
+                                }, 2000);
+                            } catch (err) {
+                                console.error('Fallback: Oops, unable to copy', err);
+                            }
+                            document.body.removeChild(textArea);
+                        }
+                    });
+                }
+            });
+
+            // Auto-scroll to the bottom of the chat container after a new message
+            var chatContainer = document.getElementById('message-container');  // The container that holds the chat messages
+            chatContainer.scrollTop = chatContainer.scrollHeight;  // Scroll to the bottom of the chat
+
+            var inputField = document.getElementById('message-input');
+            inputField.focus();
+        }
+
+
+        // Theme toggle functionality
+        document.getElementById('theme-toggle-checkbox').addEventListener('change', function() {
+            var body = document.body;
+            var themeLabel = document.getElementById('theme-label');
+            if (this.checked) {
+                body.classList.add('light-theme');
+                themeLabel.innerText = 'Light';
+            } else {
+                body.classList.remove('light-theme');
+                themeLabel.innerText = 'Dark';
+            }
+        });
+
+        // Functions to show and hide the default message
+        function showDefaultMessage() {
+            console.log("Executing showDefaultMessage()");
+            try {
+                var defaultMsg = document.getElementById('default-message');
+                if (defaultMsg) {
+                    defaultMsg.style.display = 'block';
+                } else {
+                    console.warn("Default message element not found.");
+                }
+                var inputArea = document.querySelector('.input-area');
+                if (inputArea) {
+                    inputArea.style.display = 'none';
+                } else {
+                    console.warn("Input area element not found.");
+                }
+                var sliderToggle = document.querySelector('.theme-toggle-container');
+                if (sliderToggle) {
+                    sliderToggle.style.display = 'none';
+                } else {
+                    console.warn("Slider toggle element not found.");
+                }
+            } catch (error) {
+                console.error("Error in showDefaultMessage:", error);
+            }
+        }
+
+        function hideDefaultMessage() {
+            console.log("Executing hideDefaultMessage()");
+            try {
+                var defaultMsg = document.getElementById('default-message');
+                if (defaultMsg) {
+                    defaultMsg.style.display = 'none';
+                } else {
+                    console.warn("Default message element not found.");
+                }
+                var inputArea = document.querySelector('.input-area');
+                if (inputArea) {
+                    inputArea.style.display = 'flex';
+                } else {
+                    console.warn("Input area element not found.");
+                }
+                var sliderToggle = document.querySelector('.theme-toggle-container');
+                if (sliderToggle) {
+                    sliderToggle.style.display = 'flex';
+                } else {
+                    console.warn("Slider toggle element not found.");
+                }
+            } catch (error) {
+                console.error("Error in hideDefaultMessage:", error);
+            }
+        }
+
+        // Initially, show the default message
+        window.onload = function() {
+            console.log("Window loaded. Showing default message.");
+            showDefaultMessage();
+        };
+    </script>
+</body>
+</html>
+
