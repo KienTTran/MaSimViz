@@ -511,7 +511,7 @@ void MainWindow::on_bt_process_clicked()
         loader = nullptr;
         loader = new LoaderSQLite();
         loader->loadDBList(dbFileList,
-                           vizData->sqlData.locationID,
+                           vizData->isDistrictReporter ? vizData->sqlData.unitID : vizData->sqlData.locationID,
                            vizData->sqlData.monthID,
                            vizData->sqlData.tableColumnsMap[vizData->sqlData.tableColumnsMap.keys().last()],
                            vizData->sqlData.tableColumnsMap.keys().last(), vizData,
