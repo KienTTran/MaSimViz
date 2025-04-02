@@ -1,6 +1,4 @@
 build/
 vcpkg/
 vcpkg_installed/
-*.txt
-
 
