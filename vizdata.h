@@ -42,6 +42,27 @@ public:
         double medianMax = 0.0;
     };
 
+    struct StatsDataSummary {
+        QList<double> median;
+        QList<double> iqr25;
+        QList<double> iqr75;
+        QList<double> iqr5;
+        QList<double> iqr95;
+    };
+
+    QMap<QString, StatsDataSummary> statsDataSummary;
+
+    struct GenotypeFrequency {
+        int monthlydataid;
+        int locationid;
+        QString aa_sequence;
+        double frequency;
+    };
+
+    QList<GenotypeFrequency> genotypeFrequencies;
+    QMap<QString, QPair<double, double>> genotypeFrequencyRange;  // aa_sequence → (min, max)
+
+
     struct SQLData{
         QList<QString> dbPaths;
         QList<QString> dbTables;
@@ -52,9 +73,15 @@ public:
     };
 
 
-    QVector3D interpolate(int lowerStep, float factor){
+    QVector3D interpolate(int lowerStep, float factor) {
+        if (lowerStep < 0) lowerStep = 0;
+        if (lowerStep >= colorMap.size() - 1) {
+            lowerStep = colorMap.size() - 2;
+            factor = 1.0f;
+        }
         return interpolateColors(colorMap[lowerStep], colorMap[lowerStep + 1], factor);
     }
+
 
     QVector3D interpolateColors(const QVector3D& color1, const QVector3D& color2, float factor) {
         return (1.0f - factor) * color1 + factor * color2;

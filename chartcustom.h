@@ -29,6 +29,11 @@ public:
     void setVizData(VizData *vizData);
 public slots:
     void plotDataMedianMultipleLocations(QString colName, QMap<QPair<int,int>,QColor> locInfo, int currentMonth, QString title);
+    void plotSummaryDataOnly(const QString& colName, int currentMonth, const QString& title);
+    void plotGenotypeFrequencyChart(QChartView* chartView,
+                                                 const QList<VizData::GenotypeFrequency>& data,
+                                                 double minFreq,
+                                                 double maxFreq);
 signals:
     void valueAtVerticalLineChanged(double value);
 };

@@ -35,6 +35,8 @@
 #include "loaderraster.h"
 #include "chatbotwithapi.h"
 
+#include "glrasterwidget.h"
+
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -56,9 +58,19 @@ MainWindow::MainWindow(QWidget *parent)
     ui->graphicsView->setRenderHint(QPainter::TextAntialiasing);
     ui->graphicsView->setRenderHint(QPainter::SmoothPixmapTransform);
 
+
+    scene2 = new QGraphicsScene(this);
+    ui->graphicsView2->setSceneCustom(scene2);
+    ui->graphicsView2->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    ui->graphicsView2->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    ui->graphicsView2->setRenderHint(QPainter::Antialiasing);
+    ui->graphicsView2->setRenderHint(QPainter::TextAntialiasing);
+    ui->graphicsView2->setRenderHint(QPainter::SmoothPixmapTransform);
+
     vizData = new VizData();
     vizData->prefData = preference;
     ui->graphicsView->setVizData(vizData);
+    ui->graphicsView2->setVizData(vizData);
 
     ui->le_sim_path->setText("");
     ui->le_sim_path->setPlaceholderText("Input simulation path then [Enter] or using [Browse] button");
@@ -71,7 +83,8 @@ MainWindow::MainWindow(QWidget *parent)
     currentMonth = 0;
     currentLocationSelectedMap = QMap<QPair<int,int>,QColor>();
 
-    ui->wg_color_map->setHidden(true);
+    ui->wg_color_map->setHidden(true);    
+    ui->wg_color_map_freq->setHidden(true);
 
     ui->wev_chatbox->page()->setBackgroundColor(Qt::transparent);
     ui->wev_chatbox->setMinimumWidth(width()/3);
@@ -82,7 +95,9 @@ MainWindow::MainWindow(QWidget *parent)
     ui->bt_chat_setting->setHidden(true);
 
     QObject::connect(ui->graphicsView, &GraphicsViewCustom::squareClickedOnScene, this, &MainWindow::onSquareClicked);
+    QObject::connect(ui->graphicsView2, &GraphicsViewFreq::squareClickedOnScene, this, &MainWindow::onSquareClicked);
     QObject::connect(this, &MainWindow::addClearButton, ui->graphicsView, &GraphicsViewCustom::showClearButton);
+    QObject::connect(this, &MainWindow::addClearButton, ui->graphicsView2, &GraphicsViewFreq::showClearButton);
     QObject::connect(this,&MainWindow::isAssisantReady, ui->wev_chatbox, &WebEngineViewCustom::isAssistantReady);
 
     hideMedianItems();
@@ -96,6 +111,7 @@ MainWindow::~MainWindow()
 void MainWindow::resizeEvent(QResizeEvent *event)
 {
     ui->graphicsView->fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
+    ui->graphicsView2->fitInView(scene2->sceneRect(), Qt::KeepAspectRatio);
     ui->wev_chatbox->setMinimumWidth(width()/3);
     QMainWindow::resizeEvent(event);
 }
@@ -539,12 +555,24 @@ void MainWindow::on_bt_process_clicked()
                                    QFile file(QDir(vizData->currentDirectory).filePath("MaSimViz_"+vizData->sqlData.tableColumnsMap.keys().last() + ".dat"));
                                    if(file.exists()){
                                        loadStatsData(tableName);
+                                       loadSummaryStatsData();
                                    }
                                    else{
                                        processAndSaveStatsData();
+                                       processAndSaveSummaryStatsData();
                                    }
                                }, Qt::QueuedConnection);
                            });
+
+        QFile file(QDir(vizData->currentDirectory).filePath("MaSimViz_freq.dat"));
+        if(file.exists()){
+            vizData->genotypeFrequencies = dataProcessor->loadGenotypeFrequenciesFromCSV(QDir(vizData->currentDirectory).filePath("MaSimViz_freq.dat"));
+            dataProcessor->computeGenotypeFrequencyRange(vizData);
+        }
+        else{
+            vizData->genotypeFrequencies = dataProcessor->readGenotypeFrequencyFromDatabase(dbFileList[0]);
+            dataProcessor->saveGenotypeFrequenciesToCSV(vizData->genotypeFrequencies,QDir(vizData->currentDirectory).filePath("MaSimViz_freq.dat"));
+        }
     }
     else{
         QMessageBox::information(this, "Information", "Plese stop playing first!");
@@ -639,6 +667,7 @@ void MainWindow::disabeInputWidgets(){
     ui->bt_auto_load_folder->setEnabled(false);
     ui->bt_run->setEnabled(false);
     ui->graphicsView->setEnabled(false);
+    ui->graphicsView2->setEnabled(false);
     ui->slider_progress->setEnabled(false);
 }
 
@@ -649,6 +678,7 @@ void MainWindow::enableInputWidgets(int screenNumber){
         ui->bt_process->setEnabled(true);
         ui->cb_data_list->setEnabled(true);
         ui->graphicsView->setEnabled(true);
+        ui->graphicsView2->setEnabled(true);
     }
     if(screenNumber == 1){
         ui->le_sim_path->setEnabled(true);
@@ -657,6 +687,7 @@ void MainWindow::enableInputWidgets(int screenNumber){
         ui->cb_data_list->setEnabled(true);
         ui->bt_run->setEnabled(true);
         ui->graphicsView->setEnabled(true);
+        ui->graphicsView2->setEnabled(true);
         ui->slider_progress->setEnabled(true);
     }
 }
@@ -671,6 +702,7 @@ void MainWindow::resetMedianMap(){
     currentMonth = 0;
     currentLocationSelectedMap.clear();
     ui->graphicsView->resetGraphicsView();
+    ui->graphicsView2->resetGraphicsView();
     ui->gv_chartview->setHidden(currentLocationSelectedMap.isEmpty());
     emit(addClearButton(!currentLocationSelectedMap.empty()));
 }
@@ -679,12 +711,20 @@ void MainWindow::updateMedianMap(){
     ui->wg_color_map->setColorMapMinMax(QPair<double,double>(vizData->statsData[currentColNameShown].medianMin, vizData->statsData[currentColNameShown].medianMax));
     ui->graphicsView->updateRasterDataMedian(currentColNameShown, currentMonth);
     ui->graphicsView->update();
+
+    QString selectedGenotype = "KNF--R1";
+
+    ui->wg_color_map_freq->setColorMapMinMax(QPair<double,double>(vizData->genotypeFrequencyRange[selectedGenotype].first,
+                                                                   vizData->genotypeFrequencyRange[selectedGenotype].second));
+    ui->graphicsView2->updateRasterDataFreq(selectedGenotype, currentMonth);
+    ui->graphicsView2->update();
 }
 
 void MainWindow::showChart(){
     ui->gv_chartview->setHidden(currentLocationSelectedMap.isEmpty());
     if(ui->gv_chartview->isVisible()){
-        chart->plotDataMedianMultipleLocations(currentColNameShown, currentLocationSelectedMap, currentMonth, ui->cb_data_list->currentText());
+        // chart->plotDataMedianMultipleLocations(currentColNameShown, currentLocationSelectedMap, currentMonth, ui->cb_data_list->currentText());
+        chart->plotSummaryDataOnly(currentColNameShown, currentMonth, ui->cb_data_list->currentText());
     }
 }
 
@@ -701,6 +741,7 @@ void MainWindow::showItemScreenNumber(int screenNumber){
         ui->slider_progress->setEnabled(false);
         ui->bt_run->setEnabled(false);
         ui->wg_color_map->setHidden(false);
+        ui->wg_color_map_freq->setHidden(false);
         ui->gv_chartview->setHidden(true);
         //Display only filenames in the combobox
         QStringList ascFileNameList;
@@ -853,6 +894,82 @@ void MainWindow::loadStatsData(QString tableName){
                                         });
 }
 
+void MainWindow::saveSummaryStatsData() {
+    dataProcessor->saveAllValuesSummaryToCSV(vizData,
+                                             [this](int progress) {
+                                                 QMetaObject::invokeMethod(this, [this, progress]() {
+                                                     ui->statusbar->showMessage("Saving Summary Stats to CSV ... " + QString::number(progress) + "%");
+                                                 }, Qt::QueuedConnection);
+                                             },
+                                             [this]() {
+                                                 QMetaObject::invokeMethod(this, [this]() {
+                                                     qDebug() << "Saving Summary Stats to CSV complete!";
+                                                     ui->statusbar->showMessage("Saving Summary Stats to CSV complete!");
+
+                                                     resetMedianMap();
+                                                     updateMedianMap();
+                                                     screenNumber = 1;
+                                                     enableInputWidgets(screenNumber);
+                                                     showItemScreenNumber(screenNumber);
+                                                 }, Qt::QueuedConnection);
+                                             });
+}
+
+void MainWindow::processAndSaveSummaryStatsData() {
+    dataProcessor->saveAllValuesSummaryToCSV(vizData,
+                                             [this](int progress) {
+                                                 QMetaObject::invokeMethod(this, [this, progress]() {
+                                                     ui->statusbar->showMessage("Calculating Summary Stats ... " + QString::number(progress) + "%");
+                                                 }, Qt::QueuedConnection);
+                                             },
+                                             [this]() {
+                                                 QMetaObject::invokeMethod(this, [this]() {
+                                                     qDebug() << "Calculating Summary Stats complete!";
+                                                     ui->statusbar->showMessage("Calculating Summary Stats complete!");
+                                                     saveSummaryStatsData();
+                                                 }, Qt::QueuedConnection);
+                                             });
+}
+
+void MainWindow::loadSummaryStatsData() {
+    dataProcessor->loadAllValuesSummaryFromCSV(vizData,
+                                               [this](int progress) {
+                                                   QMetaObject::invokeMethod(this, [this, progress]() {
+                                                       ui->statusbar->showMessage("Loading Summary Stats from CSV ... " + QString::number(progress) + "%");
+                                                   }, Qt::QueuedConnection);
+                                               },
+                                               [this](int readCode) {
+                                                   QMetaObject::invokeMethod(this, [this, readCode]() {
+                                                       if (readCode == 0) {
+                                                           qDebug() << "Loading Summary Stats from CSV complete!";
+                                                           ui->statusbar->showMessage("Loading Summary Stats from CSV complete!");
+                                                           // Optional: update visual charts or UI
+                                                           resetMedianMap();
+                                                           updateMedianMap();
+                                                           screenNumber = 1;
+                                                           enableInputWidgets(screenNumber);
+                                                           showItemScreenNumber(screenNumber);
+                                                       } else {
+                                                           QMessageBox::information(this, "Information", "Unable to load summary stats. Generate new?");
+                                                           QMessageBox msgBox;
+                                                           msgBox.setText("Do you want to generate new summary stats?");
+                                                           msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+                                                           msgBox.setDefaultButton(QMessageBox::No);
+                                                           int ret = msgBox.exec();
+                                                           if (ret == QMessageBox::Yes) {
+                                                               processAndSaveSummaryStatsData();
+                                                           }
+                                                           else{
+                                                               qDebug() << screenNumber;
+                                                               enableInputWidgets(screenNumber);
+                                                           }
+                                                           return;
+                                                       }
+                                                   }, Qt::QueuedConnection);
+                                               });
+}
+
+
 void MainWindow::on_cb_data_list_currentTextChanged(const QString &name)
 {
     showMap(name);
@@ -865,6 +982,8 @@ void MainWindow::showMap(QString name){
         qDebug() << "ncols:" << vizData->rasterData->raster->NCOLS << " nrows:" << vizData->rasterData->raster->NROWS;
         ui->wg_color_map->setColorMapMinMax(QPair<double,double>(vizData->rasterData->dataMin, vizData->rasterData->dataMax));
         ui->graphicsView->updateRasterData();
+        ui->wg_color_map_freq->setColorMapMinMax(QPair<double,double>(vizData->rasterData->dataMin, vizData->rasterData->dataMax));
+        ui->graphicsView2->updateRasterData();
         showLastSquareValue();
         preference->saveWorkPath(vizData->currentDirectory);
     }
@@ -1111,4 +1230,5 @@ void MainWindow::on_chb_assist_clicked(bool checked)
         }
     }
 }
+
 

@@ -68,6 +68,11 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         masimviz.qrc
         chatbotwithapiopenai.h chatbotwithapiopenai.cpp
         chatbotwithapillamacpp.h chatbotwithapillamacpp.cpp
+        graphicsviewfreq.h graphicsviewfreq.cpp
+        glrasterwidget.h glrasterwidget.cpp
+        rasterimageprovider.h
+        rasterimageprovider.cpp
+        graphicsviewbase.h graphicsviewbase.cpp
 
     )
 
@@ -96,9 +101,10 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/llamacpp/build/include)
 if(QT_WASM)
     target_link_libraries(MaSimViz PRIVATE Qt6::Widgets Qt6::OpenGLWidgets Qt6::Concurrent Qt6::Charts)
 else()
-    find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui Widgets Sql OpenGLWidgets Concurrent Charts Network webenginewidgets)
+    find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui Widgets Sql OpenGLWidgets Concurrent Charts Network webenginewidgets quickwidgets Quick Qml)
     target_link_libraries(MaSimViz PRIVATE Qt${QT_VERSION_MAJOR}::Widgets Qt${QT_VERSION_MAJOR}::Sql Qt${QT_VERSION_MAJOR}::OpenGLWidgets
-        Qt${QT_VERSION_MAJOR}::Concurrent Qt${QT_VERSION_MAJOR}::Charts Qt${QT_VERSION_MAJOR}::Network Qt${QT_VERSION_MAJOR}::WebEngineWidgets)
+        Qt${QT_VERSION_MAJOR}::Concurrent Qt${QT_VERSION_MAJOR}::Charts Qt${QT_VERSION_MAJOR}::Network Qt${QT_VERSION_MAJOR}::WebEngineWidgets
+        Qt${QT_VERSION_MAJOR}::Quick Qt${QT_VERSION_MAJOR}::Qml Qt${QT_VERSION_MAJOR}::QuickWidgets)
 
     find_package(date CONFIG REQUIRED)
     target_link_libraries(${PROJECT_NAME} PRIVATE date::date date::date-tz)
@@ -109,6 +115,7 @@ else()
     target_link_libraries(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/llamacpp/build/lib/libllama.dylib)
     target_link_libraries(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/llamacpp/build/lib/libggml.dylib)
     target_link_libraries(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/llamacpp/build/common/libcommon.a)
+
 endif()
 
 # If building for WebAssembly, ensure WASM-specific properties

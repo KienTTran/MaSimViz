@@ -84,6 +84,7 @@ private:
     QStringList csvFileList;
     QString districtRasterPath;
     QGraphicsScene *scene;
+    QGraphicsScene *scene2;
     VizData *vizData;
     DataProcessor *dataProcessor;
     ChartCustom *chart;
@@ -106,6 +107,9 @@ private:
     void saveStatsData();
     void processAndSaveStatsData();
     void loadStatsData(QString tableName);
+    void saveSummaryStatsData();
+    void processAndSaveSummaryStatsData();
+    void loadSummaryStatsData();
     void showItemScreenNumber(int screenNumber);
     QString getAPIKeyOrFile(const QString &apiKeyOrFile);
 

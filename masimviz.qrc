@@ -7,5 +7,8 @@
         <file>resources/js/highlight.min.js</file>
         <file>resources/css/fa.min.css</file>
         <file>resources/css/highlight.min.css</file>
+        <file>qml/main.qml</file>
+        <file>qml/shaders/raster.frag</file>
+        <file>qml/shaders/raster.vert</file>
     </qresource>
 </RCC>

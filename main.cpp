@@ -10,9 +10,13 @@ int main(int argc, char *argv[])
 {
     // Set the OpenGL version and profile to 4.1 (max supported on macOS)
     QSurfaceFormat format;
-    format.setVersion(4, 1);  // OpenGL 4.1
-    format.setProfile(QSurfaceFormat::CoreProfile);  // Core profile
+    format.setVersion(4, 1); // macOS supports up to OpenGL 4.1
+    format.setProfile(QSurfaceFormat::CoreProfile);
+    format.setDepthBufferSize(24);
+    format.setStencilBufferSize(8);
+    format.setSwapBehavior(QSurfaceFormat::DoubleBuffer);
     QSurfaceFormat::setDefaultFormat(format);
+
     QApplication a(argc, argv);
 
 

@@ -1,4 +1,4 @@
-#include "graphicsviewcustom.h"
+#include "GraphicsViewFreq.h"
 
 #include <QGraphicsView>
 #include <QMouseEvent>
@@ -7,7 +7,7 @@
 
 #include "squareitem.h"
 
-GraphicsViewCustom::GraphicsViewCustom(QWidget *parent) {
+GraphicsViewFreq::GraphicsViewFreq(QWidget *parent) {
     isPanning = false;
     lastMousePos = QPoint();
     currentZoomLevel = 1.0;
@@ -26,7 +26,7 @@ GraphicsViewCustom::GraphicsViewCustom(QWidget *parent) {
 }
 
 // Function to display .asc data on QGraphicsView as dots
-void GraphicsViewCustom::updateRasterData() {
+void GraphicsViewFreq::updateRasterData() {
 
     if(squareItemList.isEmpty()){
         initSquareItems();
@@ -61,56 +61,69 @@ void GraphicsViewCustom::updateRasterData() {
     scene()->update();
 }
 
-void GraphicsViewCustom::updateRasterDataMedian(const QString colName, int month) {
-
-    if(squareItemList.isEmpty()){
+void GraphicsViewFreq::updateRasterDataFreq(const QString& aa_sequence, int month) {
+    if (squareItemList.isEmpty()) {
         initSquareItems();
         initSquareScene();
     }
 
-    if(colName.isEmpty()){
-        qDebug() << "[GraphicsViewCustom] Column name is empty!";
+    if (aa_sequence.isEmpty()) {
+        qDebug() << "[GraphicsViewFreq] Amino acid sequence is empty!";
         return;
     }
 
+    // Create a lookup map: locationid → frequency
+    QMap<int, double> locationFreqMap;
+    for (const auto& item : vizData->genotypeFrequencies) {
+        if (item.aa_sequence == aa_sequence && item.monthlydataid == month) {
+            locationFreqMap[item.locationid] = item.frequency;
+        }
+    }
+
+    if (locationFreqMap.isEmpty()) {
+        qDebug() << "[GraphicsViewFreq] No genotype frequency found for month:" << month << ", aa_sequence:" << aa_sequence;
+        return;
+    }
+
+    // Determine min and max values for normalization
+    double minVal = 0.0;
+    double maxVal = 1.0;
+    if (vizData->genotypeFrequencyRange.contains(aa_sequence)) {
+        minVal = vizData->genotypeFrequencyRange[aa_sequence].first;
+        maxVal = vizData->genotypeFrequencyRange[aa_sequence].second;
+    }
+
+
     int row = -1;
     int col = -1;
-    double value = 0.0;
-    for(int loc = 0; loc < vizData->rasterData->nLocations; loc++){
+    for (int loc = 0; loc < vizData->rasterData->nLocations; ++loc) {
         row = vizData->rasterData->locationPair1DTo2D[loc].first;
         col = vizData->rasterData->locationPair1DTo2D[loc].second;
-        if(vizData->isDistrictReporter){
-            int dictrictLoc = vizData->rasterData->locationPair2DTo1DDistrict[QPair<int,int>(row,col)];
-            value = vizData->statsData[colName].iqr[0][month][dictrictLoc];
-        }
-        else{
-            value = vizData->statsData[colName].iqr[0][month][loc];
-        }
 
-        // Normalize the value to range [0, 1] based on min and max values
-        float normalizedValue = (static_cast<float>(value) - vizData->statsData[colName].medianMin) / (vizData->statsData[colName].medianMax - vizData->statsData[colName].medianMin);
-        // float normalizedValue = (static_cast<float>(value) - rasterData->dataMin) / (rasterData->dataMax - rasterData->dataMin);
+        double value = locationFreqMap.value(loc, 0.0);  // default to 0 if not present
 
-        // Determine which color stop range this value falls into
+        // Normalize the value to range [0, 1]
+        float normalizedValue = (maxVal > minVal)
+                                    ? (static_cast<float>(value) - minVal) / (maxVal - minVal)
+                                    : 0.0f;
+
         int nColorSteps = vizData->colorMap.size() - 1;
         float stepSize = 1.0f / nColorSteps;
         int lowerStep = qFloor(normalizedValue / stepSize);
         float factor = (normalizedValue - lowerStep * stepSize) / stepSize;
 
-        // Ensure we don't go out of bounds
-        if (lowerStep >= nColorSteps) {
-            lowerStep = nColorSteps - 1;
+        if (lowerStep >= vizData->colorMap.size() - 1) {
+            lowerStep = vizData->colorMap.size() - 2;
             factor = 1.0f;
         }
 
-        // Interpolate between the two adjacent colors
-        QVector3D color = vizData->interpolate(lowerStep, factor);
 
+        QVector3D color = vizData->interpolate(lowerStep, factor);
         QColor newColor = QColor::fromRgbF(color.x(), color.y(), color.z());
         if (squareItemList[col][row]->brush.color() != newColor) {
             squareItemList[col][row]->setBrushCustom(QBrush(newColor));
         }
-
     }
+
     scene()->update();
 }
