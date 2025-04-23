@@ -29,13 +29,15 @@
 #include <QList>
 #include <QFormLayout>
 #include <QStandardItemModel>
+#include <QQmlApplicationEngine>
+
+#include <QThreadPool>
+#include <QQuickWindow>
 
 #include "loadersqlite.h"
 #include "loaderyml.h"
 #include "loaderraster.h"
 #include "chatbotwithapi.h"
-
-#include "glrasterwidget.h"
 
 
 MainWindow::MainWindow(QWidget *parent)
@@ -50,6 +52,20 @@ MainWindow::MainWindow(QWidget *parent)
     move(preference->loadWindowPosition());
 
     ui->setupUi(this);
+
+    redrawTimer = new QTimer(this);
+    redrawTimer->setSingleShot(true);
+
+    QThreadPool::globalInstance()->setMaxThreadCount(4);
+
+    // Debounce rendering
+    connect(redrawTimer, &QTimer::timeout, this, [=]() {
+        currentMonth = pendingMonth;
+        ui->graphicsView->updateRasterDataMedian(currentColNameShown, currentMonth);
+        ui->graphicsView2->updateRasterDataFreq(currentGenotypeShown, currentMonth, currentFreqThreshold);
+    });
+
+
     scene = new QGraphicsScene(this);
     ui->graphicsView->setSceneCustom(scene);
     ui->graphicsView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -83,7 +99,7 @@ MainWindow::MainWindow(QWidget *parent)
     currentMonth = 0;
     currentLocationSelectedMap = QMap<QPair<int,int>,QColor>();
 
-    ui->wg_color_map->setHidden(true);    
+    ui->wg_color_map_freq->setHidden(true);
     ui->wg_color_map_freq->setHidden(true);
 
     ui->wev_chatbox->page()->setBackgroundColor(Qt::transparent);
@@ -100,7 +116,30 @@ MainWindow::MainWindow(QWidget *parent)
     QObject::connect(this, &MainWindow::addClearButton, ui->graphicsView2, &GraphicsViewFreq::showClearButton);
     QObject::connect(this,&MainWindow::isAssisantReady, ui->wev_chatbox, &WebEngineViewCustom::isAssistantReady);
 
+    playbackTimer = new QTimer(this);
+    playbackTimer->setInterval(50);
+
+    QObject::connect(playbackTimer, &QTimer::timeout, this, [=]() {
+        if (!isRunning) {
+            playbackTimer->stop();
+            return;
+        }
+
+        if (currentMonth >= vizData->monthCountStartToEnd) {
+            currentMonth = 0;  // Loop back to start
+        }
+        ui->slider_progress->setValue(currentMonth); // Triggers all updates
+        ui->graphicsView->updateRasterDataMedian(currentColNameShown,currentMonth);
+        ui->graphicsView2->updateRasterDataFreq(currentGenotypeShown,currentMonth,currentFreqThreshold);
+        ++currentMonth;
+    });
+
     hideMedianItems();
+
+}
+
+void MainWindow::showQuickWindow() {
+
 }
 
 MainWindow::~MainWindow()
@@ -365,6 +404,10 @@ bool MainWindow::displaySqlSelection(VizData* vizData, QWidget* parentWidget) {
 }
 
 void MainWindow::showLastSquareValue(){
+    if(ascFileList.isEmpty() && currentColNameShown.isEmpty()) {
+        ui->statusbar->showMessage("No raster data loaded");
+        return;
+    }
     if(currentLocationSelectedMap.isEmpty()){
         ui->statusbar->showMessage("No location selected");
     }
@@ -453,7 +496,9 @@ void MainWindow::on_le_sim_path_returnPressed()
         statusMessage = "No folder selected.";
 
         // Open a file dialog to select a folder
-        QString selectedDirectory = ui->le_sim_path->text();
+        // QString selectedDirectory = ui->le_sim_path->text();
+
+        QString selectedDirectory = "/Users/ktt/plot/masimviz";
 
         checkDirectory(selectedDirectory);
     }
@@ -566,13 +611,23 @@ void MainWindow::on_bt_process_clicked()
 
         QFile file(QDir(vizData->currentDirectory).filePath("MaSimViz_freq.dat"));
         if(file.exists()){
-            vizData->genotypeFrequencies = dataProcessor->loadGenotypeFrequenciesFromCSV(QDir(vizData->currentDirectory).filePath("MaSimViz_freq.dat"));
-            dataProcessor->computeGenotypeFrequencyRange(vizData);
+            dataProcessor->loadGenotypeFrequenciesMatrixFromCSV(vizData,QDir(vizData->currentDirectory).filePath("MaSimViz_freq.dat"));
         }
         else{
             vizData->genotypeFrequencies = dataProcessor->readGenotypeFrequencyFromDatabase(dbFileList[0]);
-            dataProcessor->saveGenotypeFrequenciesToCSV(vizData->genotypeFrequencies,QDir(vizData->currentDirectory).filePath("MaSimViz_freq.dat"));
+            dataProcessor->saveGenotypeFrequenciesMatrixToCSV(
+                vizData->genotypeFrequencies,        // your raw frequency data
+                vizData->monthCountStartToEnd,       // TOTALMONTH
+                vizData->rasterData->nLocations,     // TOTALLOC
+                QDir(vizData->currentDirectory).filePath("MaSimViz_freq.dat")
+                );
         }
+        dataProcessor->computeGenotypeFrequencyRange(vizData);
+        ui->wg_color_map_freq->setColorMapMinMax(QPair<double,double>(0.0,1.0));
+        ui->cb_genotype_list->clear();
+        ui->cb_genotype_list->addItems(vizData->genotypeNames);
+        resetMedianFreqMap();
+        updateMedianFreqMap();
     }
     else{
         QMessageBox::information(this, "Information", "Plese stop playing first!");
@@ -582,59 +637,30 @@ void MainWindow::on_bt_process_clicked()
 void MainWindow::on_bt_run_clicked()
 {
     isRunning = !isRunning;
+
     if (isRunning) {
         ui->bt_run->setText("Pause");
+        playbackTimer->start();  // Begin playback
     } else {
         ui->bt_run->setText("Run");
+        playbackTimer->stop();   // Pause playback
     }
-
-    qDebug() << "clicked run" << currentMonth;
-
-    QFutureWatcher<void> *futureWatcher = new QFutureWatcher<void>(this);
-
-    // Define a lambda function to update the data in a separate thread
-    QFuture<void> future = QtConcurrent::run([=]() {
-        for (int month = currentMonth; month < vizData->statsData[currentColNameShown].iqr[0].size(); month++) {
-            // Check if the loop should be stopped
-            if (!isRunning) {
-                currentMonth = month;
-                break;
-            }
-
-            // Progress bar needs to be updated in the main thread
-            QMetaObject::invokeMethod(this, [=]() {
-                ui->slider_progress->setValue(month);
-            }, Qt::QueuedConnection);
-
-            // Sleep for 50 milliseconds to simulate processing time
-            QThread::msleep(50);
-        }
-    });
-
-    // Set the future to the watcher
-    futureWatcher->setFuture(future);
-
-    // Connect the futureWatcher to a slot to handle when the background task finishes
-    QObject::connect(futureWatcher, &QFutureWatcher<void>::finished, this, [=]() {
-        if (ui->slider_progress->value() == vizData->monthCountStartToEnd - 1) {
-            // Reset the state when processing finishes
-            // qDebug() << "Running finished!";
-            resetPlayState();
-        }
-    });
 }
 
 void MainWindow::on_slider_progress_valueChanged(int value)
 {
+    if (value == currentMonth) return;
     currentMonth = value;
+
     if (currentMonth >= vizData->monthCountStartToEnd) {
         currentMonth = vizData->monthCountStartToEnd - 1;
     }
-    updateMedianMap();
-    showChart();
-    ui->statusbar->showMessage("Month: " + QString::number(currentMonth + 1) + " Year: " + QString::number(currentMonth / 12));
-    // qDebug() << value << "Month:" << currentMonth;
+
+    // Use your existing debounce timer for smooth updates
+    pendingMonth = currentMonth;
+    redrawTimer->start(10);  // Only trigger real redraw every few ms
 }
+
 
 void MainWindow::on_slider_progress_sliderMoved(int value)
 {
@@ -664,6 +690,7 @@ void MainWindow::disabeInputWidgets(){
     ui->le_sim_path->setEnabled(false);
     ui->bt_process->setEnabled(false);
     ui->cb_data_list->setEnabled(false);
+    ui->cb_genotype_list->setEnabled(false);
     ui->bt_auto_load_folder->setEnabled(false);
     ui->bt_run->setEnabled(false);
     ui->graphicsView->setEnabled(false);
@@ -677,6 +704,7 @@ void MainWindow::enableInputWidgets(int screenNumber){
         ui->bt_auto_load_folder->setEnabled(true);
         ui->bt_process->setEnabled(true);
         ui->cb_data_list->setEnabled(true);
+        ui->cb_genotype_list->setEnabled(true);
         ui->graphicsView->setEnabled(true);
         ui->graphicsView2->setEnabled(true);
     }
@@ -685,6 +713,7 @@ void MainWindow::enableInputWidgets(int screenNumber){
         ui->bt_auto_load_folder->setEnabled(true);
         ui->bt_process->setEnabled(true);
         ui->cb_data_list->setEnabled(true);
+        ui->cb_genotype_list->setEnabled(true);
         ui->bt_run->setEnabled(true);
         ui->graphicsView->setEnabled(true);
         ui->graphicsView2->setEnabled(true);
@@ -702,21 +731,29 @@ void MainWindow::resetMedianMap(){
     currentMonth = 0;
     currentLocationSelectedMap.clear();
     ui->graphicsView->resetGraphicsView();
-    ui->graphicsView2->resetGraphicsView();
     ui->gv_chartview->setHidden(currentLocationSelectedMap.isEmpty());
     emit(addClearButton(!currentLocationSelectedMap.empty()));
 }
 
+
+void MainWindow::resetMedianFreqMap(){
+    if(vizData->genotypeNames.isEmpty()){
+        currentGenotypeShown = "";
+    }
+    else{
+        currentGenotypeShown = vizData->genotypeNames.first();
+    }
+    ui->graphicsView2->resetGraphicsView();
+}
+
 void MainWindow::updateMedianMap(){
-    ui->wg_color_map->setColorMapMinMax(QPair<double,double>(vizData->statsData[currentColNameShown].medianMin, vizData->statsData[currentColNameShown].medianMax));
+    ui->wg_color_map_freq->setColorMapMinMax(QPair<double,double>(vizData->statsData[currentColNameShown].medianMin, vizData->statsData[currentColNameShown].medianMax));
     ui->graphicsView->updateRasterDataMedian(currentColNameShown, currentMonth);
     ui->graphicsView->update();
+}
 
-    QString selectedGenotype = "KNF--R1";
-
-    ui->wg_color_map_freq->setColorMapMinMax(QPair<double,double>(vizData->genotypeFrequencyRange[selectedGenotype].first,
-                                                                   vizData->genotypeFrequencyRange[selectedGenotype].second));
-    ui->graphicsView2->updateRasterDataFreq(selectedGenotype, currentMonth);
+void MainWindow::updateMedianFreqMap(){
+    ui->graphicsView2->updateRasterDataFreq(currentGenotypeShown, currentMonth,currentFreqThreshold);
     ui->graphicsView2->update();
 }
 
@@ -724,7 +761,7 @@ void MainWindow::showChart(){
     ui->gv_chartview->setHidden(currentLocationSelectedMap.isEmpty());
     if(ui->gv_chartview->isVisible()){
         // chart->plotDataMedianMultipleLocations(currentColNameShown, currentLocationSelectedMap, currentMonth, ui->cb_data_list->currentText());
-        chart->plotSummaryDataOnly(currentColNameShown, currentMonth, ui->cb_data_list->currentText());
+        // chart->plotSummaryDataOnly(currentColNameShown, currentMonth, ui->cb_data_list->currentText());
     }
 }
 
@@ -740,7 +777,7 @@ void MainWindow::showItemScreenNumber(int screenNumber){
         ui->slider_progress->setValue(0);
         ui->slider_progress->setEnabled(false);
         ui->bt_run->setEnabled(false);
-        ui->wg_color_map->setHidden(false);
+        ui->wg_color_map_freq->setHidden(false);
         ui->wg_color_map_freq->setHidden(false);
         ui->gv_chartview->setHidden(true);
         //Display only filenames in the combobox
@@ -774,11 +811,16 @@ void MainWindow::showItemScreenNumber(int screenNumber){
     }
 }
 
-void MainWindow::resetPlayState(){
+void MainWindow::resetPlayState()
+{
     isRunning = false;
     ui->bt_run->setText("Run");
+    playbackTimer->stop();
+    currentMonth = 0;
     ui->slider_progress->setValue(0);
 }
+
+
 
 void MainWindow::saveStatsData(){
     dataProcessor->saveStatsDataToCSV(vizData,
@@ -980,9 +1022,8 @@ void MainWindow::showMap(QString name){
         LoaderRaster *loader = new LoaderRaster();
         loader->loadFileSingle(cbItemPathMap[name], vizData, nullptr, nullptr);
         qDebug() << "ncols:" << vizData->rasterData->raster->NCOLS << " nrows:" << vizData->rasterData->raster->NROWS;
-        ui->wg_color_map->setColorMapMinMax(QPair<double,double>(vizData->rasterData->dataMin, vizData->rasterData->dataMax));
-        ui->graphicsView->updateRasterData();
         ui->wg_color_map_freq->setColorMapMinMax(QPair<double,double>(vizData->rasterData->dataMin, vizData->rasterData->dataMax));
+        ui->graphicsView->updateRasterData();
         ui->graphicsView2->updateRasterData();
         showLastSquareValue();
         preference->saveWorkPath(vizData->currentDirectory);
@@ -994,6 +1035,14 @@ void MainWindow::showMap(QString name){
         showChart();
     }
 }
+
+
+void MainWindow::on_cb_genotype_list_currentTextChanged(const QString &name)
+{
+    currentGenotypeShown = name;
+    updateMedianFreqMap();
+}
+
 
 QString MainWindow::getAPIKeyOrFile(const QString &apiKeyOrFile) {
     QFileInfo fileInfo(apiKeyOrFile);
@@ -1231,4 +1280,11 @@ void MainWindow::on_chb_assist_clicked(bool checked)
     }
 }
 
+void MainWindow::on_sb_freq_threshold_valueChanged(double value)
+{
+    currentFreqThreshold = value;
+    qDebug() << "Threshold changed to:" << currentFreqThreshold;
+    ui->wg_color_map_freq->setColorMapMinMax(QPair<double,double>(currentFreqThreshold,1.0));
+    ui->graphicsView2->updateRasterDataFreq(currentGenotypeShown, currentMonth,currentFreqThreshold);
+}
 

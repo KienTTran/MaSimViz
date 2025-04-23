@@ -69,11 +69,7 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         chatbotwithapiopenai.h chatbotwithapiopenai.cpp
         chatbotwithapillamacpp.h chatbotwithapillamacpp.cpp
         graphicsviewfreq.h graphicsviewfreq.cpp
-        glrasterwidget.h glrasterwidget.cpp
-        rasterimageprovider.h
-        rasterimageprovider.cpp
         graphicsviewbase.h graphicsviewbase.cpp
-
     )
 
     qt_create_translation(QM_FILES ${CMAKE_SOURCE_DIR} ${TS_FILES})

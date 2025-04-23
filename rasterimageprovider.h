@@ -1,22 +1,24 @@
-#pragma once
+// RasterImageProvider.h
+#ifndef RASTERIMAGEPROVIDER_H
+#define RASTERIMAGEPROVIDER_H
 
 #include <QQuickImageProvider>
 #include <QImage>
-#include <vector>
+#include <QMutex>
 
 class RasterImageProvider : public QQuickImageProvider {
 public:
     RasterImageProvider();
 
+    // Thread-safe setter
+    void setImage(const QImage &image);
+
+    // Provide image to QML
     QImage requestImage(const QString &id, QSize *size, const QSize &requestedSize) override;
 
-    // Set from MainWindow or controller
-    void setRasterData(const std::vector<float>& data, int width, int height, float minVal, float maxVal);
-
 private:
-    std::vector<float> rasterData;
-    int width = 0;
-    int height = 0;
-    float minVal = 0.0f;
-    float maxVal = 1.0f;
+    QImage image_;
+    QMutex mutex_;
 };
+
+#endif // RASTERIMAGEPROVIDER_H

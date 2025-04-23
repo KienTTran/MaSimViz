@@ -60,7 +60,11 @@ public:
     };
 
     QList<GenotypeFrequency> genotypeFrequencies;
+    QMap<QString, QVector<QVector<double>>> genotypeFreqMatrix;
     QMap<QString, QPair<double, double>> genotypeFrequencyRange;  // aa_sequence → (min, max)
+    QMap<QString, QVector<double>> genotypeMax;  // genotype -> vector of [loc] = sum
+    QStringList genotypeNames;
+
 
 
     struct SQLData{

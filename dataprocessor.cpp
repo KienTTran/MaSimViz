@@ -525,17 +525,50 @@ QList<VizData::GenotypeFrequency> DataProcessor::readGenotypeFrequencyFromDataba
     }
 
     QString queryStr = R"(
+        WITH frequencies AS (
+            SELECT
+                mgd.monthlydataid,
+                mgd.locationid,
+                g.name AS aa_sequence,
+                mgd.weightedoccurrences,
+                msd.infectedindividuals,
+                CASE
+                    WHEN msd.infectedindividuals != 0 THEN mgd.weightedoccurrences * 1.0 / msd.infectedindividuals
+                    ELSE NULL
+                END AS weighted_frequency
+            FROM monthlygenomedata mgd
+            JOIN monthlysitedata msd
+                ON mgd.monthlydataid = msd.monthlydataid
+                AND mgd.locationid = msd.locationid
+            JOIN genotype g
+                ON mgd.genomeid = g.id
+        ),
+        ranked AS (
+            SELECT *,
+                   ROW_NUMBER() OVER (PARTITION BY monthlydataid ORDER BY weighted_frequency) AS rn_asc,
+                   COUNT(*) OVER (PARTITION BY monthlydataid) AS cnt
+            FROM frequencies
+        ),
+        median_calc AS (
+            SELECT monthlydataid,
+                   CASE
+                       WHEN cnt % 2 = 1 THEN
+                           MAX(weighted_frequency) FILTER (WHERE rn_asc = (cnt + 1) / 2)
+                       ELSE
+                           AVG(weighted_frequency) FILTER (WHERE rn_asc IN (cnt / 2, cnt / 2 + 1))
+                   END AS median_weighted_frequency
+            FROM ranked
+            GROUP BY monthlydataid
+        )
         SELECT
-            mgd.monthlydataid,
-            mgd.locationid,
-            g.name AS aa_sequence,
-            mgd.weightedoccurrences,
-            msd.infectedindividuals
-        FROM monthlygenomedata mgd
-        JOIN monthlysitedata msd
-            ON mgd.monthlydataid = msd.monthlydataid
-            AND mgd.locationid = msd.locationid
-        JOIN genotype g ON mgd.genomeid = g.id;
+            f.monthlydataid,
+            f.locationid,
+            f.aa_sequence,
+            m.median_weighted_frequency
+        FROM frequencies f
+        JOIN median_calc m
+            ON f.monthlydataid = m.monthlydataid
+        ORDER BY m.median_weighted_frequency DESC;
     )";
 
     QSqlQuery query(db);
@@ -548,9 +581,7 @@ QList<VizData::GenotypeFrequency> DataProcessor::readGenotypeFrequencyFromDataba
         int month = query.value("monthlydataid").toInt();
         int loc = query.value("locationid").toInt();
         QString aa_seq = query.value("aa_sequence").toString();
-        double weight = query.value("weightedoccurrences").toDouble();
-        double infected = query.value("infectedindividuals").toDouble();
-        double freq = (infected > 0.0) ? weight / infected : 0.0;
+        double freq = query.value("median_weighted_frequency").toDouble();
 
         // qDebug() << loc << month << aa_seq << freq;
 
@@ -566,51 +597,184 @@ QList<VizData::GenotypeFrequency> DataProcessor::readGenotypeFrequencyFromDataba
 #include <QFile>
 #include <QTextStream>
 
-void DataProcessor::saveGenotypeFrequenciesToCSV(const QList<VizData::GenotypeFrequency>& data, const QString& filePath) {
+void DataProcessor::saveGenotypeFrequenciesMatrixToCSV(const QList<VizData::GenotypeFrequency>& data,
+                                                       int totalMonths,
+                                                       int totalLocations,
+                                                       const QString& filePath) {
+    // Step 1: Extract unique genotype names
+    QSet<QString> genotypeSet;
+    for (const auto& row : data) {
+        genotypeSet.insert(row.aa_sequence);
+    }
+    QStringList genotypeList = genotypeSet.values();
+    genotypeList.sort();
+
+    // Step 2: Initialize matrix[genotype][location][month] = value
+    QMap<QString, QVector<QVector<double>>> matrix;
+    for (const QString& genotype : genotypeList) {
+        matrix[genotype] = QVector<QVector<double>>(totalLocations, QVector<double>(totalMonths, 0.0));
+    }
+
+    // Step 3: Directly store frequency values
+    for (const auto& row : data) {
+        if (row.monthlydataid < 0 || row.monthlydataid >= totalMonths || row.locationid >= totalLocations)
+            continue;
+        matrix[row.aa_sequence][row.locationid][row.monthlydataid] = row.frequency;
+    }
+
+    // Step 4: Compute MAX for each genotype-location pair
+    QMap<QString, double> genotypeLocMax; // key: "GENO_LOC", value: max
+    for (const QString& genotype : genotypeList) {
+        for (int loc = 0; loc < totalLocations; ++loc) {
+            double maxVal = 0.0;
+            for (int month = 0; month < totalMonths; ++month) {
+                maxVal = qMax(maxVal, matrix[genotype][loc][month]);
+            }
+            QString key = QString("%1_%2").arg(genotype).arg(loc);
+            genotypeLocMax[key] = maxVal;
+        }
+    }
+
+    // Step 5: Open file
     QFile file(filePath);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        qWarning() << "Cannot write file:" << file.errorString();
+        qWarning() << "Cannot write matrix CSV:" << file.errorString();
         return;
     }
 
     QTextStream out(&file);
-    out << "monthlydataid,locationid,aa_sequence,frequency\n";
 
-    for (const auto& row : data) {
-        out << row.monthlydataid << "," << row.locationid << ","
-            << row.aa_sequence << "," << row.frequency << "\n";
+    // Step 6: Write header with SUMs
+    out << "monthlydataid";
+    for (const QString& genotype : genotypeList) {
+        for (int loc = 0; loc < totalLocations; ++loc) {
+            QString key = QString("%1_%2").arg(genotype).arg(loc);
+            out << "," << key << ":" << QString::number(genotypeLocMax[key], 'g', 4);
+        }
+    }
+    out << "\n";
+
+    // Step 7: Write data
+    for (int month = 0; month < totalMonths; ++month) {
+        out << month;
+        for (const QString& genotype : genotypeList) {
+            for (int loc = 0; loc < totalLocations; ++loc) {
+                out << "," << matrix[genotype][loc][month];
+            }
+        }
+        out << "\n";
     }
 
     file.close();
 }
 
-QList<VizData::GenotypeFrequency> DataProcessor::loadGenotypeFrequenciesFromCSV(const QString& filePath) {
-    QList<VizData::GenotypeFrequency> data;
+
+
+void DataProcessor::loadGenotypeFrequenciesMatrixFromCSV(VizData* vizData, const QString& filePath) {
     QFile file(filePath);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        qWarning() << "Cannot read file:" << file.errorString();
-        return data;
+        qWarning() << "Cannot read matrix CSV:" << file.errorString();
+        return;
     }
 
     QTextStream in(&file);
-    QString header = in.readLine(); // skip header
-
-    while (!in.atEnd()) {
-        QString line = in.readLine();
-        QStringList parts = line.split(",");
-        if (parts.size() != 4) continue;
-
-        VizData::GenotypeFrequency gf;
-        gf.monthlydataid = parts[0].toInt();
-        gf.locationid = parts[1].toInt();
-        gf.aa_sequence = parts[2];
-        gf.frequency = parts[3].toDouble();
-        data.append(gf);
+    QStringList headers = in.readLine().split(",");
+    if (headers.size() < 2 || headers[0].trimmed() != "monthlydataid") {
+        qWarning() << "CSV header malformed";
+        return;
     }
 
+    vizData->genotypeFreqMatrix.clear();
+    vizData->genotypeMax.clear();
+    QSet<QString> genotypeNames;
+    QMap<QString, int> genotypeToLocationCount;
+    QMap<QString, QMap<int, QString>> genotypeToMaxKeyMap;
+
+    // Parse genotype_location headers with MAX values
+    QVector<QPair<QString, int>> genotypeLocKeys;
+    for (int i = 1; i < headers.size(); ++i) {
+        QString header = headers[i].trimmed(); // e.g., "KNF--H1_0:0.23"
+        int colonIdx = header.lastIndexOf(':');
+        QString keyPart = (colonIdx != -1) ? header.left(colonIdx) : header;
+        double maxVal = (colonIdx != -1) ? header.mid(colonIdx + 1).toDouble() : 0.0;
+
+        int underscoreIdx = keyPart.lastIndexOf('_');
+        if (underscoreIdx == -1) continue;
+
+        QString genotype = keyPart.left(underscoreIdx);
+        int location = keyPart.mid(underscoreIdx + 1).toInt();
+
+        if(genotype.isEmpty()){
+            qDebug() << "genotype is empty";
+        }
+
+        QString maxKey = QString("%1:%2").arg(genotype).arg(maxVal);
+
+        if(maxKey.isEmpty()){
+            qDebug() << "maxKey is empty";
+        }
+
+        // genotypeToMaxKeyMap[genotype][location] = maxKey;
+
+        genotypeLocKeys.append({genotype, location});
+        // genotypeNames.insert(maxKey);
+        genotypeNames.insert(genotype);
+        genotypeToLocationCount[genotype] = qMax(genotypeToLocationCount[genotype], location + 1);
+
+        // Store max in vizData->genotypeMax
+        if (!vizData->genotypeMax.contains(genotype)) {
+            vizData->genotypeMax[genotype] = QVector<double>(location + 1, 0.0);
+        }
+        if (vizData->genotypeMax[genotype].size() <= location) {
+            vizData->genotypeMax[genotype].resize(location + 1);
+        }
+        vizData->genotypeMax[genotype][location] = maxVal;
+    }
+
+    // Initialize genotypeFreqMatrix
+    for (const QString& geno : genotypeNames) {
+        int nLocs = genotypeToLocationCount[geno];
+        vizData->genotypeFreqMatrix[geno] = QVector<QVector<double>>(vizData->monthCountStartToEnd, QVector<double>(nLocs, 0.0));
+    }
+
+    // qDebug() << vizData->genotypeFreqMatrix.keys().size() << vizData->genotypeFreqMatrix.keys().first() << vizData->genotypeFreqMatrix.keys().last();
+
+    // qDebug() << genotypeToMaxKeyMap.keys().size() << genotypeToMaxKeyMap.keys().first() << genotypeToMaxKeyMap.keys().last();
+
+    // qDebug() << QStringList(genotypeNames.begin(), genotypeNames.end()).first().size() << QStringList(genotypeNames.begin(), genotypeNames.end()).first() << QStringList(genotypeNames.begin(), genotypeNames.end()).last();
+
+    // qDebug() << genotypeLocKeys.size() << genotypeLocKeys.first() << genotypeLocKeys.last();
+
+    // Parse CSV rows
+    while (!in.atEnd()) {
+        QStringList parts = in.readLine().split(",");
+        if (parts.size() != headers.size()) continue;
+
+        int month = parts[0].toInt();
+        if (month >= vizData->monthCountStartToEnd) continue;
+
+        for (int i = 0; i < genotypeLocKeys.size(); ++i) {
+            const auto& key = genotypeLocKeys[i];
+            double freq = parts[i + 1].toDouble();
+
+            // QString matrixKey = genotypeToMaxKeyMap[key.first][key.second];
+            // qDebug() << matrixKey << key << "month:" << month << "freq:" << freq;
+
+            if (key.second >= 0 && key.second < vizData->rasterData->nLocations) {
+                vizData->genotypeFreqMatrix[key.first][month][key.second] = freq;
+                // vizData->genotypeFreqMatrix[matrixKey][month][key.second] = freq;
+            }
+        }
+    }
+
+    vizData->genotypeNames = QStringList(genotypeNames.begin(), genotypeNames.end());
+    vizData->genotypeNames.sort();
+
     file.close();
-    return data;
+
+    qDebug() << "[Load]Loaded genotype frequencies from CSV:" << filePath;
 }
+
 
 void DataProcessor::computeGenotypeFrequencyRange(VizData* vizData) {
     vizData->genotypeFrequencyRange.clear();
@@ -629,5 +793,3 @@ void DataProcessor::computeGenotypeFrequencyRange(VizData* vizData) {
         }
     }
 }
-
-

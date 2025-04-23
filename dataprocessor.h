@@ -22,9 +22,14 @@ public:
     void loadAllValuesSummaryFromCSV(VizData* vizData, std::function<void(int)> progressCallback, std::function<void(int)> completionCallback);
 
     QList<VizData::GenotypeFrequency> readGenotypeFrequencyFromDatabase(const QString& dbPath);
-    void saveGenotypeFrequenciesToCSV(const QList<VizData::GenotypeFrequency>& data, const QString& filePath);
-    QList<VizData::GenotypeFrequency> loadGenotypeFrequenciesFromCSV(const QString& filePath);
+
+    void saveGenotypeFrequenciesMatrixToCSV(const QList<VizData::GenotypeFrequency>& data,
+                                            int totalMonths,
+                                            int totalLocations,
+                                            const QString& filePath);
+    void loadGenotypeFrequenciesMatrixFromCSV(VizData* vizData, const QString& filePath);
     void computeGenotypeFrequencyRange(VizData* vizData);
+    void sortGenotypeNames(VizData* vizData);
 };
 
 #endif // DATAPROCESSOR_H

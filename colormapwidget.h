@@ -60,14 +60,16 @@ protected:
 
         QFontMetrics metrics(painter.font());
 
-        // Define values to display above the colormap
-        QVector<QString> valueLabels = {
-            QString::number(colorMapMinMax.first, 'f', 2),
-            QString::number((colorMapMinMax.first + colorMapMinMax.second) / 4, 'f', 2),
-            QString::number((colorMapMinMax.first + colorMapMinMax.second) / 2, 'f', 2),
-            QString::number(((colorMapMinMax.first + colorMapMinMax.second) / 4)*3, 'f', 2),
-            QString::number(colorMapMinMax.second, 'f', 2)
-        };
+        double minVal = colorMapMinMax.first;
+        double maxVal = colorMapMinMax.second;
+        QVector<QString> valueLabels;
+        int numTicks = 5;
+
+        for (int i = 0; i < numTicks; ++i) {
+            double t = static_cast<double>(i) / (numTicks - 1);  // 0.0 to 1.0
+            double value = minVal + t * (maxVal - minVal);       // Correct linear interpolation
+            valueLabels.append(QString::number(value, 'f', 2));
+        }
 
         int textPaddingY = 0;  // Vertical padding between text and top of the widget
         int tickLength = 0;    // Length of the tick marks

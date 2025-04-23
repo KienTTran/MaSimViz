@@ -4,6 +4,7 @@
 #include <QMouseEvent>
 #include <QWheelEvent>
 #include <QScrollBar>
+#include <QtConcurrent>
 
 #include "squareitem.h"
 
@@ -61,6 +62,31 @@ void GraphicsViewCustom::updateRasterData() {
     scene()->update();
 }
 
+void GraphicsViewCustom::updateRasterDataPixmap(){
+    int ncols = vizData->rasterData->raster->NCOLS;
+    int nrows = vizData->rasterData->raster->NROWS;
+
+    auto colorFunc = [&](int row, int col) -> QColor {
+        double value = vizData->rasterData->raster->data[row][col];
+        float normalized = (value - vizData->rasterData->dataMin) / (vizData->rasterData->dataMax - vizData->rasterData->dataMin);
+        int nSteps = vizData->colorMap.size() - 1;
+        float stepSize = 1.0f / nSteps;
+        int lowerStep = qFloor(normalized / stepSize);
+        float factor = (normalized - lowerStep * stepSize) / stepSize;
+        if (lowerStep >= nSteps) { lowerStep = nSteps - 1; factor = 1.0f; }
+        QVector3D color = vizData->interpolate(lowerStep, factor);
+        return QColor::fromRgbF(color.x(), color.y(), color.z());
+    };
+
+    QImage image = createRasterImage(ncols, nrows, colorFunc);
+    QPixmap pixmap = QPixmap::fromImage(image);
+
+    scene()->clear();
+    if (!pixmapItem) pixmapItem = new QGraphicsPixmapItem();
+    pixmapItem->setPixmap(pixmap);
+    scene()->addItem(pixmapItem);
+}
+
 void GraphicsViewCustom::updateRasterDataMedian(const QString colName, int month) {
 
     if(squareItemList.isEmpty()){
@@ -112,5 +138,68 @@ void GraphicsViewCustom::updateRasterDataMedian(const QString colName, int month
         }
 
     }
-    scene()->update();
+    scene()->invalidate();
+}
+
+void GraphicsViewCustom::updateRasterDataMedianPixmap(const QString colName, int month) {
+    if (colName.isEmpty()) {
+        qDebug() << "[GraphicsViewCustom] Column name is empty!";
+        return;
+    }
+
+    if (!vizData || !vizData->rasterData || !vizData->rasterData->raster) {
+        qWarning() << "[GraphicsViewCustom] Invalid vizData or raster";
+        return;
+    }
+
+    const int ncols = vizData->rasterData->raster->NCOLS;
+    const int nrows = vizData->rasterData->raster->NROWS;
+
+    if (ncols <= 0 || nrows <= 0) {
+        qWarning() << "[GraphicsViewCustom] Invalid raster size:" << ncols << "x" << nrows;
+        return;
+    }
+
+    // Capture by value for threading safety
+    auto colorFunc = [=](int row, int col) -> QColor {
+        double value = 0.0;
+        if (vizData->isDistrictReporter) {
+            int districtLoc = vizData->rasterData->locationPair2DTo1DDistrict.value(QPair<int, int>(row, col), -1);
+            if (districtLoc >= 0) {
+                value = vizData->statsData[colName].iqr[0][month][districtLoc];
+            }
+        } else {
+            int loc = vizData->rasterData->locationPair2DTo1D.value(QPair<int, int>(row, col), -1);
+            if (loc >= 0) {
+                value = vizData->statsData[colName].iqr[0][month][loc];
+            }
+        }
+
+        return computeColorFromValue(
+            value,
+            vizData->statsData[colName].medianMin,
+            vizData->statsData[colName].medianMax,
+            vizData->colorMap,
+            [=](int idx, float factor) { return vizData->interpolate(idx, factor); }
+            );
+    };
+
+    // Run image rendering in background
+    QtConcurrent::run([=]() {
+        QImage image = createRasterImage(nrows, ncols, colorFunc);
+        QPixmap pixmap = QPixmap::fromImage(image);
+
+        QMetaObject::invokeMethod(this, [=]() {
+            if (!scene()) setScene(new QGraphicsScene(this));
+
+            if (!pixmapItem) {
+                pixmapItem = new QGraphicsPixmapItem();
+                scene()->addItem(pixmapItem);
+            }
+
+            pixmapItem->setPixmap(pixmap);
+            scene()->setSceneRect(0, 0, image.width(), image.height());
+            centerOn(pixmapItem); // or: fitInView(...)
+        }, Qt::QueuedConnection);
+    });
 }

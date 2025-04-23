@@ -69,6 +69,10 @@ private slots:
 
     void on_chb_assist_clicked(bool checked);
 
+    void on_cb_genotype_list_currentTextChanged(const QString &arg1);
+
+    void on_sb_freq_threshold_valueChanged(double arg1);
+
 public slots:
     void onSquareClicked(const QPoint &pos, const QColor &color);
     void onChatbotReplyReceived(QString response);
@@ -90,6 +94,8 @@ private:
     ChartCustom *chart;
     ChatbotWithAPI *onlineChatbot;
     ChatbotWithModel *offlineChatbot;
+    QTimer* playbackTimer = nullptr;
+
 
 private:
     bool displaySqlSelection(VizData* vizData, QWidget* parentWidget = nullptr);
@@ -99,7 +105,9 @@ private:
     void enableInputWidgets(int screenNumber);
     void showMap(QString name);
     void updateMedianMap();
+    void updateMedianFreqMap();
     void resetMedianMap();
+    void resetMedianFreqMap();
     void hideMedianItems();
     void resetPlayState();
     void showLastSquareValue();
@@ -112,15 +120,20 @@ private:
     void loadSummaryStatsData();
     void showItemScreenNumber(int screenNumber);
     QString getAPIKeyOrFile(const QString &apiKeyOrFile);
+    void showQuickWindow();
 
 private:
     bool all_rasters_exist = false;
     std::atomic<bool> isRunning = false;             // Global or class member to track play/pause state
     int currentMonth = 0;
     QString currentColNameShown = "";
+    QString currentGenotypeShown = "";
+    double currentFreqThreshold = 0.001;
     QMap<QPair<int,int>,QColor> currentLocationSelectedMap;
     QMap<QString,QString> cbItemPathMap;
     int screenNumber = 0;
+    QTimer* redrawTimer;
+    int pendingMonth = -1;
 
 signals:
     void addClearButton(bool show);

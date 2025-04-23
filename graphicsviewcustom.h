@@ -7,5 +7,7 @@ class GraphicsViewCustom : public GraphicsViewBase
 public:
     explicit GraphicsViewCustom(QWidget *parent = nullptr);
     Q_INVOKABLE void updateRasterData();
+    Q_INVOKABLE void updateRasterDataPixmap();
     Q_INVOKABLE void updateRasterDataMedian(const QString colName, int month);
+    Q_INVOKABLE void updateRasterDataMedianPixmap(const QString colName, int month);
 };

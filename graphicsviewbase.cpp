@@ -77,6 +77,11 @@ void GraphicsViewBase::mousePressEvent(QMouseEvent *event) {
         lastMousePos = event->pos();
     }
     QGraphicsView::mousePressEvent(event);
+
+    QPointF scenePos = mapToScene(event->pos());
+    int col = static_cast<int>(scenePos.x()) / cellSize;
+    int row = static_cast<int>(scenePos.y()) / cellSize;
+    emit squareClickedOnScene(QPoint(col, row), QColor()); // Placeholder for color
 }
 
 void GraphicsViewBase::mouseMoveEvent(QMouseEvent *event) {
@@ -146,3 +151,49 @@ void GraphicsViewBase::onSquareClicked(const QPoint &pos, const QColor &color) {
     }
     emit squareClickedOnScene(pos, color);
 }
+
+QImage GraphicsViewBase::createRasterImage(
+    int rows, int cols, std::function<QColor(int row, int col)> colorFunc)
+{
+    QImage image(cols * cellSize, rows * cellSize, QImage::Format_ARGB32);
+    image.fill(Qt::black);
+
+    QPainter painter(&image);
+    for (int loc = 0; loc < vizData->rasterData->nLocations; ++loc) {
+        int row = vizData->rasterData->locationPair1DTo2D[loc].first;
+        int col = vizData->rasterData->locationPair1DTo2D[loc].second;
+
+        if (loc == 0) {
+            QColor color = colorFunc(row, col);
+            // qDebug() << "[DEBUG] color at (0,0):" << color;
+        }
+
+        painter.fillRect(col * cellSize, row * cellSize, cellSize, cellSize, colorFunc(row, col));
+    }
+
+    return image;
+}
+
+
+QColor GraphicsViewBase::computeColorFromValue(
+    float value, float minVal, float maxVal,
+    const QVector<QVector3D>& colorMap,
+    std::function<QVector3D(int, float)> interpolate) {
+
+    float normalized = (maxVal > minVal) ? (value - minVal) / (maxVal - minVal) : 0.0f;
+    int nSteps = colorMap.size() - 1;
+    float stepSize = 1.0f / nSteps;
+    int lowerStep = qFloor(normalized / stepSize);
+    float factor = (normalized - lowerStep * stepSize) / stepSize;
+
+    if (lowerStep >= nSteps) {
+        lowerStep = nSteps - 1;
+        factor = 1.0f;
+    }
+
+    QVector3D colorVec = interpolate(lowerStep, factor);
+    return QColor::fromRgbF(colorVec.x(), colorVec.y(), colorVec.z());
+}
+
+
+
