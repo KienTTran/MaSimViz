@@ -1,4 +1,4 @@
-#include "graphicsviewcustom.h"
+#include "graphicsview.h"
 
 #include <QGraphicsView>
 #include <QMouseEvent>
@@ -8,7 +8,7 @@
 
 #include "squareitem.h"
 
-GraphicsViewCustom::GraphicsViewCustom(QWidget *parent) {
+GraphicsView::GraphicsView(QWidget *parent) {
     isPanning = false;
     lastMousePos = QPoint();
     cellSize = 30;
@@ -27,7 +27,7 @@ GraphicsViewCustom::GraphicsViewCustom(QWidget *parent) {
 }
 
 // Function to display .asc data on QGraphicsView as dots
-void GraphicsViewCustom::updateRasterData() {
+void GraphicsView::updateRasterData() {
 
     if(squareItemList.isEmpty()){
         initSquareItems();
@@ -62,7 +62,7 @@ void GraphicsViewCustom::updateRasterData() {
     scene()->update();
 }
 
-void GraphicsViewCustom::updateRasterDataPixmap(){
+void GraphicsView::updateRasterDataPixmap(){
     int ncols = vizData->rasterData->raster->NCOLS;
     int nrows = vizData->rasterData->raster->NROWS;
 
@@ -87,14 +87,14 @@ void GraphicsViewCustom::updateRasterDataPixmap(){
     scene()->addItem(pixmapItem);
 }
 
-void GraphicsViewCustom::updateRasterDataMedian(const QString colName, int month) {
+void GraphicsView::updateRasterDataMedian(const QString colName, int month) {
     if(squareItemList.isEmpty()){
         initSquareItems();
         initSquareScene();
     }
 
     if(colName.isEmpty()){
-        qDebug() << "[GraphicsViewCustom] Column name is empty!";
+        qDebug() << "[GraphicsView] Column name is empty!";
         return;
     }
 
@@ -146,7 +146,7 @@ void GraphicsViewCustom::updateRasterDataMedian(const QString colName, int month
 
     }
 
-    setOverlayText(QString("%1\nPrevalence 2-10: %2%")
+    setOverlayText(QString("KENYA\n%1\nP.falciparum prevalence: %2%")
                        .arg(vizData->simStartDate.addMonths(month).toString("yyyy-MM-dd"))
                        .arg(vizData->statsDataSummary[colName].median[month], 0, 'f', 2));
 
@@ -154,14 +154,14 @@ void GraphicsViewCustom::updateRasterDataMedian(const QString colName, int month
     scene()->invalidate();
 }
 
-void GraphicsViewCustom::updateRasterDataMedianPixmap(const QString colName, int month) {
+void GraphicsView::updateRasterDataMedianPixmap(const QString colName, int month) {
     if (colName.isEmpty()) {
-        qDebug() << "[GraphicsViewCustom] Column name is empty!";
+        qDebug() << "[GraphicsView] Column name is empty!";
         return;
     }
 
     if (!vizData || !vizData->rasterData || !vizData->rasterData->raster) {
-        qWarning() << "[GraphicsViewCustom] Invalid vizData or raster";
+        qWarning() << "[GraphicsView] Invalid vizData or raster";
         return;
     }
 
@@ -169,7 +169,7 @@ void GraphicsViewCustom::updateRasterDataMedianPixmap(const QString colName, int
     const int nrows = vizData->rasterData->raster->NROWS;
 
     if (ncols <= 0 || nrows <= 0) {
-        qWarning() << "[GraphicsViewCustom] Invalid raster size:" << ncols << "x" << nrows;
+        qWarning() << "[GraphicsView] Invalid raster size:" << ncols << "x" << nrows;
         return;
     }
 

@@ -68,6 +68,15 @@ MainWindow::MainWindow(QWidget *parent)
     ui->graphicsView->setRenderHint(QPainter::SmoothPixmapTransform);
 
 
+    scene1 = new QGraphicsScene(this);
+    ui->graphicsView1->setSceneCustom(scene1);
+    ui->graphicsView1->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    ui->graphicsView1->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    ui->graphicsView1->setRenderHint(QPainter::Antialiasing);
+    ui->graphicsView1->setRenderHint(QPainter::TextAntialiasing);
+    ui->graphicsView1->setRenderHint(QPainter::SmoothPixmapTransform);
+
+
     scene2 = new QGraphicsScene(this);
     ui->graphicsView2->setSceneCustom(scene2);
     ui->graphicsView2->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -79,6 +88,7 @@ MainWindow::MainWindow(QWidget *parent)
     vizData = new VizData();
     vizData->prefData = preference;
     ui->graphicsView->setVizData(vizData);
+    ui->graphicsView1->setVizData(vizData);
     ui->graphicsView2->setVizData(vizData);
 
     ui->le_sim_path->setText("");
@@ -88,16 +98,22 @@ MainWindow::MainWindow(QWidget *parent)
     chart->setChartView(ui->gv_chartview);
     chart->setVizData(vizData);
 
-    chartFreq = new ChartCustom(this);
-    chartFreq->setChartView(ui->gv_chartview2);
-    chartFreq->setVizData(vizData);
+
+    chart1 = new ChartCustom(this);
+    chart1->setChartView(ui->gv_chartview1);
+    chart1->setVizData(vizData);
+
+    chart2 = new ChartCustom(this);
+    chart2->setChartView(ui->gv_chartview2);
+    chart2->setVizData(vizData);
 
     currentColNameShown = "";
     currentMonth = 0;
     currentLocationSelectedMap = QMap<QPair<int,int>,QColor>();
 
-    ui->wg_color_map_freq->setHidden(true);
-    ui->wg_color_map_freq->setHidden(true);
+    ui->wg_color_map->setHidden(true);
+    ui->wg_color_map1->setHidden(true);
+    ui->wg_color_map2->setHidden(true);
 
     ui->wev_chatbox->page()->setBackgroundColor(Qt::transparent);
     ui->wev_chatbox->setMinimumWidth(width()/3);
@@ -107,21 +123,21 @@ MainWindow::MainWindow(QWidget *parent)
     ui->wev_chatbox->setHidden(true);
     ui->bt_chat_setting->setHidden(true);
 
-    QObject::connect(ui->graphicsView, &GraphicsViewCustom::squareClickedOnScene, this, &MainWindow::onSquareClicked);
-    QObject::connect(ui->graphicsView2, &GraphicsViewFreq::squareClickedOnScene, this, &MainWindow::onSquareClicked);
-    QObject::connect(this, &MainWindow::addClearButton, ui->graphicsView, &GraphicsViewCustom::showClearButton);
-    QObject::connect(this, &MainWindow::addClearButton, ui->graphicsView2, &GraphicsViewFreq::showClearButton);
-    QObject::connect(this,&MainWindow::isAssisantReady, ui->wev_chatbox, &WebEngineViewCustom::isAssistantReady);
+    // QObject::connect(ui->graphicsView, &GraphicsView::squareClickedOnScene, this, &MainWindow::onSquareClicked);
+    // QObject::connect(ui->graphicsView2, &GraphicsView2::squareClickedOnScene, this, &MainWindow::onSquareClicked);
+    // QObject::connect(this, &MainWindow::addClearButton, ui->graphicsView, &GraphicsView::showClearButton);
+    // QObject::connect(this, &MainWindow::addClearButton, ui->graphicsView2, &GraphicsView2::showClearButton);
+    // QObject::connect(this,&MainWindow::isAssisantReady, ui->wev_chatbox, &WebEngineViewCustom::isAssistantReady);
 
     playbackTimer = new QTimer(this);
-    playbackTimer->setInterval(5);
-
+    playbackTimer->setInterval(1);
 
     // Debounce rendering
     connect(redrawTimer, &QTimer::timeout, this, [=]() {
         currentMonth = pendingMonth;
         ui->graphicsView->updateRasterDataMedian(currentColNameShown, currentMonth);
-        ui->graphicsView2->updateRasterDataFreq(currentGenotypeShown, currentMonth, currentFreqThresholdMin, currentFreqThresholdMax);
+        ui->graphicsView1->updateRasterDataFreq(wildTypeGenotype, currentMonth, currentFreqThresholdMin, currentFreqThresholdMax);
+        ui->graphicsView2->updateRasterDataFreq(currentGenotypeShown,currentMonth,0.25, 0.55);
         showChart();
     });
 
@@ -136,13 +152,22 @@ MainWindow::MainWindow(QWidget *parent)
         }
         ui->slider_progress->setValue(currentMonth); // Triggers all updates
         ui->graphicsView->updateRasterDataMedian(currentColNameShown,currentMonth);
-        ui->graphicsView2->updateRasterDataFreq(currentGenotypeShown,currentMonth,currentFreqThresholdMin, currentFreqThresholdMax);
+        ui->graphicsView1->updateRasterDataFreq(wildTypeGenotype, currentMonth, currentFreqThresholdMin, currentFreqThresholdMax);
+        ui->graphicsView2->updateRasterDataFreq(currentGenotypeShown,currentMonth,0.25, 0.55);
         showChart();
+        QMetaObject::invokeMethod(this, [this]() {
+            ui->statusbar->showMessage(vizData->simStartDate.addMonths(currentMonth).toString("yyyy-MM-dd"));
+        }, Qt::QueuedConnection);
         ++currentMonth;
     });
 
     hideMedianItems();
 
+    wildTypeGenotype = "TNY--R1";
+
+    normalColor = Qt::cyan;
+    wildTypeColor = Qt::green;
+    mutantColor = Qt::magenta;
 }
 
 void MainWindow::showQuickWindow() {
@@ -157,6 +182,7 @@ MainWindow::~MainWindow()
 void MainWindow::resizeEvent(QResizeEvent *event)
 {
     ui->graphicsView->fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
+    ui->graphicsView1->fitInView(scene1->sceneRect(), Qt::KeepAspectRatio);
     ui->graphicsView2->fitInView(scene2->sceneRect(), Qt::KeepAspectRatio);
     ui->wev_chatbox->setMinimumWidth(width()/3);
     QMainWindow::resizeEvent(event);
@@ -505,7 +531,7 @@ void MainWindow::on_le_sim_path_returnPressed()
         // Open a file dialog to select a folder
         // QString selectedDirectory = ui->le_sim_path->text();
 
-        QString selectedDirectory = "/Users/ktt/plot/masimviz";
+        QString selectedDirectory = "/Users/ktt/TempleUniversity/BoniLab";
 
         checkDirectory(selectedDirectory);
     }
@@ -680,6 +706,7 @@ void MainWindow::disabeInputWidgets(){
     ui->bt_auto_load_folder->setEnabled(false);
     ui->bt_run->setEnabled(false);
     ui->graphicsView->setEnabled(false);
+    ui->graphicsView1->setEnabled(false);
     ui->graphicsView2->setEnabled(false);
     ui->slider_progress->setEnabled(false);
 }
@@ -692,6 +719,7 @@ void MainWindow::enableInputWidgets(int screenNumber){
         ui->cb_data_list->setEnabled(true);
         ui->cb_genotype_list->setEnabled(true);
         ui->graphicsView->setEnabled(true);
+        ui->graphicsView1->setEnabled(true);
         ui->graphicsView2->setEnabled(true);
     }
     if(screenNumber == 1){
@@ -702,6 +730,7 @@ void MainWindow::enableInputWidgets(int screenNumber){
         ui->cb_genotype_list->setEnabled(true);
         ui->bt_run->setEnabled(true);
         ui->graphicsView->setEnabled(true);
+        ui->graphicsView1->setEnabled(true);
         ui->graphicsView2->setEnabled(true);
         ui->slider_progress->setEnabled(true);
     }
@@ -728,11 +757,12 @@ void MainWindow::resetMedianFreqMap(){
     else{
         currentGenotypeShown = vizData->genotypeNames.first();
     }
+    ui->graphicsView1->resetGraphicsView();
     ui->graphicsView2->resetGraphicsView();
 }
 
 void MainWindow::updateMedianMap(){
-    ui->wg_color_map_freq->setColorMapMinMax(QPair<double,double>(vizData->statsData[currentColNameShown].medianMin, vizData->statsData[currentColNameShown].medianMax));
+    ui->wg_color_map->setColorMapMinMax(QPair<double,double>(vizData->statsData[currentColNameShown].medianMin, vizData->statsData[currentColNameShown].medianMax));
     ui->graphicsView->updateRasterDataMedian(currentColNameShown, currentMonth);
     ui->graphicsView->update();
     chartInitialized = false;
@@ -740,19 +770,25 @@ void MainWindow::updateMedianMap(){
                            QPair<double,double>(vizData->statsData[currentColNameShown].medianMin,
                                                  vizData->statsData[currentColNameShown].medianMax),
                            currentColNameShown, currentMonth,
-                           ui->cb_data_list->currentText());
+                           ui->cb_data_list->currentText(),normalColor);
     chartInitialized = true;  // bool member variable
 }
 
 void MainWindow::updateMedianFreqMap(){
-    ui->graphicsView2->updateRasterDataFreq(currentGenotypeShown, currentMonth,currentFreqThresholdMin, currentFreqThresholdMax);
+    ui->wg_color_map1->setColorMapMinMax(QPair<double,double>(currentFreqThresholdMin, currentFreqThresholdMax));
+    ui->wg_color_map2->setColorMapMinMax(QPair<double,double>(0.25,0.55));
+    ui->graphicsView1->updateRasterDataFreq(wildTypeGenotype, currentMonth,currentFreqThresholdMin, currentFreqThresholdMax);
+    ui->graphicsView1->update();
+    ui->graphicsView2->updateRasterDataFreq(currentGenotypeShown,currentMonth,0.25, 0.55);
     ui->graphicsView2->update();
-    ui->wg_color_map_freq->setColorMapMinMax(QPair<double,double>(currentFreqThresholdMin, currentFreqThresholdMax));
     chartInitialized = false;
-    chartFreq->plotSummaryData(vizData->statsFrequencySummary,
+    chart1->plotSummaryData(vizData->statsFrequencySummary,
+                            QPair<double,double>(0.0,1.0),
+                            wildTypeGenotype, currentMonth, wildTypeGenotype,wildTypeColor);
+    chart2->plotSummaryData(vizData->statsFrequencySummary,
                                QPair<double,double>(0.0,1.0),
                                currentGenotypeShown, currentMonth,
-                               ui->cb_genotype_list->currentText());
+                               ui->cb_genotype_list->currentText(),mutantColor);
 
     chartInitialized = true;  // bool member variable
 }
@@ -763,17 +799,20 @@ void MainWindow::showChart(){
                                QPair<double,double>(vizData->statsData[currentColNameShown].medianMin,
                                                      vizData->statsData[currentColNameShown].medianMax),
                                currentColNameShown, currentMonth,
-                               ui->cb_data_list->currentText());
-
-        chartFreq->plotSummaryData(vizData->statsFrequencySummary,
+                               ui->cb_data_list->currentText(),normalColor);
+        chart1->plotSummaryData(vizData->statsFrequencySummary,
+                                QPair<double,double>(0.0,1.0),
+                                wildTypeGenotype, currentMonth, wildTypeGenotype,wildTypeColor);
+        chart2->plotSummaryData(vizData->statsFrequencySummary,
                                    QPair<double,double>(0.0,1.0),
                                    currentGenotypeShown, currentMonth,
-                                   ui->cb_genotype_list->currentText());
+                                   ui->cb_genotype_list->currentText(),mutantColor);
 
         chartInitialized = true;  // bool member variable
     } else {
         chart->updateVerticalLine(vizData->statsDataSummary,currentColNameShown,currentMonth);
-        chartFreq->updateVerticalLine(vizData->statsFrequencySummary,currentGenotypeShown,currentMonth);
+        chart1->updateVerticalLine(vizData->statsFrequencySummary,wildTypeGenotype,currentMonth);
+        chart2->updateVerticalLine(vizData->statsFrequencySummary,currentGenotypeShown,currentMonth);
     }
 }
 
@@ -790,8 +829,9 @@ void MainWindow::showItemScreenNumber(int screenNumber){
         ui->slider_progress->setValue(0);
         ui->slider_progress->setEnabled(false);
         ui->bt_run->setEnabled(false);
-        ui->wg_color_map_freq->setHidden(false);
-        ui->wg_color_map_freq->setHidden(false);
+        ui->wg_color_map->setHidden(false);
+        ui->wg_color_map1->setHidden(false);
+        ui->wg_color_map2->setHidden(false);
         // ui->gv_chartview->setHidden(true);
         // ui->gv_chartview2->setHidden(true);
         //Display only filenames in the combobox
@@ -987,7 +1027,6 @@ void MainWindow::loadSummaryStatsData() {
                                                        ui->statusbar->showMessage("Loading Summary Stats from CSV complete!");
                                                    }, Qt::QueuedConnection);
                                                        /* use this only for monthlydata, comment genotype frequency */
-                                                       // ui->wg_color_map_freq->setColorMapMinMax(QPair<double,double>(0.0,1.0));
                                                        // ui->cb_genotype_list->clear();
                                                        // ui->cb_genotype_list->addItems(vizData->genotypeNames);
                                                        // resetMedianMap();
@@ -1026,7 +1065,6 @@ void MainWindow::loadGenotypeFrequencyData() {
                                                                       QMetaObject::invokeMethod(this, [this]() {
                                                                           ui->statusbar->showMessage("Loading Genotype Frequency Summary data from CSV complete!");
                                                                       }, Qt::QueuedConnection);
-                                                                      ui->wg_color_map_freq->setColorMapMinMax(QPair<double,double>(0.0,1.0));
                                                                       ui->cb_genotype_list->clear();
                                                                       ui->cb_genotype_list->addItems(vizData->genotypeNames);
                                                                       resetMedianMap();
@@ -1051,7 +1089,6 @@ void MainWindow::loadGenotypeFrequencyData() {
             QDir(vizData->currentDirectory).filePath("MaSimViz_freq.dat"),
             [this](int progress) {},
             [this](){
-                ui->wg_color_map_freq->setColorMapMinMax(QPair<double,double>(0.0,1.0));
                 ui->cb_genotype_list->clear();
                 ui->cb_genotype_list->addItems(vizData->genotypeNames);
                 resetMedianMap();
@@ -1075,9 +1112,12 @@ void MainWindow::showMap(QString name){
     if(screenNumber == 0){
         LoaderRaster *loader = new LoaderRaster();
         loader->loadFileSingle(cbItemPathMap[name], vizData, nullptr, nullptr);
-        qDebug() << "ncols:" << vizData->rasterData->raster->NCOLS << " nrows:" << vizData->rasterData->raster->NROWS;
-        ui->wg_color_map_freq->setColorMapMinMax(QPair<double,double>(vizData->rasterData->dataMin, vizData->rasterData->dataMax));
+        qDebug() << "ncols:" << vizData->rasterData->raster->NCOLS << " nrows:" << vizData->rasterData->raster->NROWS;        
+        ui->wg_color_map->setColorMapMinMax(QPair<double,double>(vizData->statsData[currentColNameShown].medianMin, vizData->statsData[currentColNameShown].medianMax));
+        ui->wg_color_map1->setColorMapMinMax(QPair<double,double>(currentFreqThresholdMin, currentFreqThresholdMax));
+        ui->wg_color_map2->setColorMapMinMax(QPair<double,double>(0.25,0.55));
         ui->graphicsView->updateRasterData();
+        ui->graphicsView1->updateRasterData();
         ui->graphicsView2->updateRasterData();
         showLastSquareValue();
         preference->saveWorkPath(vizData->currentDirectory);
@@ -1086,6 +1126,7 @@ void MainWindow::showMap(QString name){
         qDebug() << "Column name changed to:" << name;
         currentColNameShown = name;
         updateMedianMap();
+        updateMedianFreqMap();
         showChart();
     }
 }
@@ -1337,15 +1378,19 @@ void MainWindow::on_chb_assist_clicked(bool checked)
 void MainWindow::on_sb_freq_min_valueChanged(double value)
 {
     currentFreqThresholdMin = value;
-    ui->wg_color_map_freq->setColorMapMinMax(QPair<double,double>(currentFreqThresholdMin,currentFreqThresholdMax));
-    ui->graphicsView2->updateRasterDataFreq(currentGenotypeShown, currentMonth,currentFreqThresholdMin, currentFreqThresholdMax);
+    ui->wg_color_map1->setColorMapMinMax(QPair<double,double>(currentFreqThresholdMin,currentFreqThresholdMax));
+    ui->wg_color_map2->setColorMapMinMax(QPair<double,double>(0.25,0.55));
+    ui->graphicsView1->updateRasterDataFreq(currentGenotypeShown,currentMonth,currentFreqThresholdMin,currentFreqThresholdMax);
+    ui->graphicsView2->updateRasterDataFreq(currentGenotypeShown,currentMonth,0.25, 0.55);
 }
 
 
 void MainWindow::on_sb_freq_max_valueChanged(double value)
 {
     currentFreqThresholdMax = value;
-    ui->wg_color_map_freq->setColorMapMinMax(QPair<double,double>(currentFreqThresholdMin,currentFreqThresholdMax));
-    ui->graphicsView2->updateRasterDataFreq(currentGenotypeShown, currentMonth,currentFreqThresholdMin, currentFreqThresholdMax);
+    ui->wg_color_map1->setColorMapMinMax(QPair<double,double>(currentFreqThresholdMin,currentFreqThresholdMax));
+    ui->wg_color_map2->setColorMapMinMax(QPair<double,double>(0.25,0.55));
+    ui->graphicsView1->updateRasterDataFreq(currentGenotypeShown,currentMonth,currentFreqThresholdMin,currentFreqThresholdMax);
+    ui->graphicsView2->updateRasterDataFreq(currentGenotypeShown,currentMonth,0.25, 0.55);
 }
 

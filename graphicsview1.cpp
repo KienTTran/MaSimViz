@@ -1,4 +1,4 @@
-#include "GraphicsViewFreq.h"
+#include "GraphicsView1.h"
 
 #include <QGraphicsView>
 #include <QMouseEvent>
@@ -8,12 +8,12 @@
 
 #include "squareitem.h"
 
-GraphicsViewFreq::GraphicsViewFreq(QWidget *parent) {
+GraphicsView1::GraphicsView1(QWidget *parent) {
     isPanning = false;
     lastMousePos = QPoint();
     cellSize = 30;
     vizData = new VizData();
-    squareItemList = QVector<QVector<SquareItem*>>();    
+    squareItemList = QVector<QVector<SquareItem*>>();
     currentZoomLevel = 1.0;
     currentZoomFactor = zoomFactor;
 
@@ -27,7 +27,7 @@ GraphicsViewFreq::GraphicsViewFreq(QWidget *parent) {
 }
 
 // Function to display .asc data on QGraphicsView as dots
-void GraphicsViewFreq::updateRasterData() {
+void GraphicsView1::updateRasterData() {
 
     if(squareItemList.isEmpty()){
         initSquareItems();
@@ -63,7 +63,7 @@ void GraphicsViewFreq::updateRasterData() {
 }
 
 
-void GraphicsViewFreq::updateRasterDataPixmap(){
+void GraphicsView1::updateRasterDataPixmap(){
     int ncols = vizData->rasterData->raster->NCOLS;
     int nrows = vizData->rasterData->raster->NROWS;
 
@@ -88,16 +88,16 @@ void GraphicsViewFreq::updateRasterDataPixmap(){
     scene()->addItem(pixmapItem);
 }
 
-void GraphicsViewFreq::updateRasterDataFreq(const QString& aa_sequence, int month,
-                                            double thresholdMin,
-                                            double thresholdMax) {
+void GraphicsView1::updateRasterDataFreq(const QString& aa_sequence, int month,
+                                         double thresholdMin,
+                                         double thresholdMax) {
     if (squareItemList.isEmpty()) {
         initSquareItems();
         initSquareScene();
     }
 
     if(aa_sequence.isEmpty()){
-        qDebug() << "[GraphicsViewFreq] Amino acid sequence is empty!";
+        qDebug() << "[GraphicsView1] Amino acid sequence is empty!";
         return;
     }
 
@@ -137,19 +137,18 @@ void GraphicsViewFreq::updateRasterDataFreq(const QString& aa_sequence, int mont
     }
 
 
-    setOverlayText(QString("%1\nWildtype frequency: %2%\nArtermisinin-Lumenfantrine Resistance frequency: %3%\n")
+    setOverlayText(QString("KENYA\n%1\nPercent of sensitive genotypes: %2%")
                        .arg(vizData->simStartDate.addMonths(month).toString("yyyy-MM-dd"))
-                       .arg(vizData->statsFrequencySummary["KNF--R1"].median[month], 0, 'f', 2)
-                       .arg(vizData->statsFrequencySummary["KNF--H1"].median[month], 0, 'f', 2));
+                       .arg(vizData->statsFrequencySummary[aa_sequence].median[month]*100, 0, 'f', 2));
 
 
     scene()->invalidate();
 }
 
 
-void GraphicsViewFreq::updateRasterDataFreqPixmap(const QString& aa_sequence, int month) {
+void GraphicsView1::updateRasterDataFreqPixmap(const QString& aa_sequence, int month) {
     if (aa_sequence.isEmpty()) {
-        qDebug() << "[GraphicsViewFreq] Amino acid sequence is empty!";
+        qDebug() << "[GraphicsView1] Amino acid sequence is empty!";
         return;
     }
 
@@ -162,7 +161,7 @@ void GraphicsViewFreq::updateRasterDataFreqPixmap(const QString& aa_sequence, in
     }
 
     if (locationFreqMap.isEmpty()) {
-        qDebug() << "[GraphicsViewFreq] No genotype frequency found for month:" << month << ", aa_sequence:" << aa_sequence;
+        qDebug() << "[GraphicsView1] No genotype frequency found for month:" << month << ", aa_sequence:" << aa_sequence;
         return;
     }
 

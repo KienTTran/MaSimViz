@@ -47,7 +47,7 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         .gitignore
         loader.h loader.cpp
         loadersqlite.h loadersqlite.cpp
-        graphicsviewcustom.h graphicsviewcustom.cpp
+        graphicsview.h graphicsview.cpp
         glwidgetcustom.h glwidgetcustom.cpp
         vizdata.h vizdata.cpp
         loaderyml.h loaderyml.cpp
@@ -68,9 +68,10 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         masimviz.qrc
         chatbotwithapiopenai.h chatbotwithapiopenai.cpp
         chatbotwithapillamacpp.h chatbotwithapillamacpp.cpp
-        graphicsviewfreq.h graphicsviewfreq.cpp
+        graphicsview2.h graphicsview2.cpp
         graphicsviewbase.h graphicsviewbase.cpp
         chartbase.h chartbase.cpp
+        graphicsview1.h graphicsview1.cpp
     )
 
     qt_create_translation(QM_FILES ${CMAKE_SOURCE_DIR} ${TS_FILES})

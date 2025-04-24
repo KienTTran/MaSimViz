@@ -182,17 +182,20 @@
           <item row="1" column="0">
            <layout class="QGridLayout" name="gridLayout_4" rowstretch="2,0,0">
             <item row="0" column="0">
-             <layout class="QHBoxLayout" name="horizontalLayout_3" stretch="3,3">
+             <layout class="QHBoxLayout" name="horizontalLayout_3" stretch="3,3,3">
               <item>
-               <widget class="GraphicsViewCustom" name="graphicsView"/>
+               <widget class="GraphicsView" name="graphicsView"/>
               </item>
               <item>
-               <widget class="GraphicsViewFreq" name="graphicsView2"/>
+               <widget class="GraphicsView1" name="graphicsView1"/>
+              </item>
+              <item>
+               <widget class="GraphicsView2" name="graphicsView2"/>
               </item>
              </layout>
             </item>
             <item row="1" column="0">
-             <layout class="QHBoxLayout" name="horizontalLayout_8" stretch="5,5,0">
+             <layout class="QHBoxLayout" name="horizontalLayout_8" stretch="3,3,3,0">
               <item>
                <widget class="QChartView" name="gv_chartview">
                 <property name="minimumSize">
@@ -213,6 +216,9 @@
                </widget>
               </item>
               <item>
+               <widget class="QChartView" name="gv_chartview1"/>
+              </item>
+              <item>
                <widget class="QChartView" name="gv_chartview2">
                 <property name="frameShape">
                  <enum>QFrame::Shape::NoFrame</enum>
@@ -231,9 +237,14 @@
              </layout>
             </item>
             <item row="2" column="0">
-             <layout class="QHBoxLayout" name="horizontalLayout_2" stretch="5,5">
+             <layout class="QHBoxLayout" name="horizontalLayout_2" stretch="3,3,3">
               <item>
-               <widget class="ColorMapWidget" name="wg_color_map_freq" native="true">
+               <widget class="ColorMapWidget" name="wg_color_map" native="true">
+                <layout class="QGridLayout" name="gridLayout_5"/>
+               </widget>
+              </item>
+              <item>
+               <widget class="ColorMapWidget" name="wg_color_map1" native="true">
                 <layout class="QGridLayout" name="gridLayout_6">
                  <property name="sizeConstraint">
                   <enum>QLayout::SizeConstraint::SetDefaultConstraint</enum>
@@ -242,7 +253,7 @@
                </widget>
               </item>
               <item>
-               <widget class="ColorMapWidget" name="wg_color_map" native="true">
+               <widget class="ColorMapWidget" name="wg_color_map2" native="true">
                 <layout class="QGridLayout" name="gridLayout_8">
                  <property name="sizeConstraint">
                   <enum>QLayout::SizeConstraint::SetDefaultConstraint</enum>
@@ -325,11 +336,6 @@
    <header>QCharts</header>
   </customwidget>
   <customwidget>
-   <class>GraphicsViewCustom</class>
-   <extends>QGraphicsView</extends>
-   <header>graphicsviewcustom.h</header>
-  </customwidget>
-  <customwidget>
    <class>ColorMapWidget</class>
    <extends>QWidget</extends>
    <header>colormapwidget.h</header>
@@ -342,9 +348,19 @@
    <container>1</container>
   </customwidget>
   <customwidget>
-   <class>GraphicsViewFreq</class>
+   <class>GraphicsView</class>
    <extends>QGraphicsView</extends>
-   <header>graphicsviewfreq.h</header>
+   <header>GraphicsView.h</header>
+  </customwidget>
+  <customwidget>
+   <class>GraphicsView2</class>
+   <extends>QGraphicsView</extends>
+   <header>graphicsview2.h</header>
+  </customwidget>
+  <customwidget>
+   <class>GraphicsView1</class>
+   <extends>QGraphicsView</extends>
+   <header>graphicsview1.h</header>
   </customwidget>
  </customwidgets>
  <resources/>

@@ -42,7 +42,8 @@ public:
                                     const QPair<double,double>& yMinMax,
                                     const QString& colName,
                                     int currentMonth,
-                         const QString& title);
+                                     const QString& title,
+                                     QColor& fillColor);
     void updateVerticalLine(const QMap<QString, VizData::StatsDataSummary>& summaryData,
                             const QString& colName,int currentMonth);
 };

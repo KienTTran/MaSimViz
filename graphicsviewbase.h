@@ -32,6 +32,7 @@ public:
     void setCellSize(int size){
         cellSize = size;
     }
+    void setOverlayText(const QString& text);
 
 protected:
     void resizeEvent(QResizeEvent *event) override;
@@ -42,7 +43,6 @@ protected:
     QImage createRasterImage(int width, int height, std::function<QColor(int row, int col)> colorFunc);
     QColor computeColorFromValue(float value, float minVal, float maxVal, const QVector<QVector3D>& colorMap,
                                  std::function<QVector3D(int, float)> interpolate);
-    void setOverlayText(const QString& text);
 
     VizData *vizData = nullptr;
     QVector<QVector<SquareItem*>> squareItemList;
@@ -57,8 +57,6 @@ protected:
     int cellSize = 30;  // Size of each square cell
 
     QLabel* overlayLabel = nullptr;
-
-
 
     QGraphicsPixmapItem* pixmapItem = nullptr;
 

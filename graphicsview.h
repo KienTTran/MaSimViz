@@ -1,11 +1,11 @@
 #pragma once
 #include "graphicsviewbase.h"
 
-class GraphicsViewCustom : public GraphicsViewBase
+class GraphicsView : public GraphicsViewBase
 {
     Q_OBJECT
 public:
-    explicit GraphicsViewCustom(QWidget *parent = nullptr);
+    explicit GraphicsView(QWidget *parent = nullptr);
     Q_INVOKABLE void updateRasterData();
     Q_INVOKABLE void updateRasterDataPixmap();
     Q_INVOKABLE void updateRasterDataMedian(const QString colName, int month);

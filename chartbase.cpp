@@ -65,7 +65,8 @@ void ChartBase::plotSummaryData(const QMap<QString, VizData::StatsDataSummary>& 
                                 const QPair<double, double>& yMinMax,
                                 const QString& colName,
                                 int currentMonth,
-                                const QString& title) {
+                                const QString& title,
+                                QColor& fillColor) {
     if (!summaryData.contains(colName) || summaryData[colName].median.isEmpty()) {
         qWarning() << "[ChartCustom] Summary stats not found for column:" << colName;
         return;
@@ -85,7 +86,12 @@ void ChartBase::plotSummaryData(const QMap<QString, VizData::StatsDataSummary>& 
         chart->setTitleBrush(QBrush(Qt::white));
 
     }
-    chart->setTitle(title);
+    if(title == "pfprall"){
+        chart->setTitle("Prevalence of P. falciparum");
+    }
+    else{
+        chart->setTitle(QString("Frequency of %1").arg(title));
+    }
     chart->setTitleBrush(QBrush(Qt::white));
 
     if (!axisX || !axisY) {
@@ -111,9 +117,8 @@ void ChartBase::plotSummaryData(const QMap<QString, VizData::StatsDataSummary>& 
         iqr75Series = new QLineSeries();
         areaSeries = new QAreaSeries(iqr25Series, iqr75Series);
 
-        QPen pen(Qt::cyan, 3);
+        QPen pen(fillColor, 3);
         medianSeries->setPen(pen);
-        QColor fillColor = Qt::cyan;
         fillColor.setAlphaF(0.4);
         areaSeries->setBrush(QBrush(fillColor));
         areaSeries->setPen(Qt::NoPen);

@@ -50,5 +50,5 @@ void SquareItem::mousePressEvent(QGraphicsSceneMouseEvent *event){
     //     emit squareClicked(squareColRow,selectedColor);  // Emit signal with the column and row
     // }
 
-    QGraphicsRectItem::mousePressEvent(event);  // Call base class to keep default behavior
+    // QGraphicsRectItem::mousePressEvent(event);  // Call base class to keep default behavior
 }

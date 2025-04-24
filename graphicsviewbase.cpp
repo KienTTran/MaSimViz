@@ -11,9 +11,9 @@ GraphicsViewBase::GraphicsViewBase(QWidget *parent) : QGraphicsView(parent) {
     setTransformationAnchor(QGraphicsView::AnchorUnderMouse);
     setBackgroundBrush(QBrush(QColor(0, 0, 0)));
 
-    overlayLabel = new QLabel("Text Overlay", this);
+    overlayLabel = new QLabel("", this);
     overlayLabel->setStyleSheet("color: white; background-color: rgba(0, 0, 0, 128); padding: 4px;");
-    overlayLabel->setFont(QFont("Arial", 14, QFont::Bold));
+    overlayLabel->setFont(QFont("Consolas", 14));
     overlayLabel->move(10, height() - 30); // Start at bottom-left
     overlayLabel->show();
 
@@ -96,10 +96,10 @@ void GraphicsViewBase::mousePressEvent(QMouseEvent *event) {
     }
     QGraphicsView::mousePressEvent(event);
 
-    // QPointF scenePos = mapToScene(event->pos());
-    // int col = static_cast<int>(scenePos.x()) / cellSize;
-    // int row = static_cast<int>(scenePos.y()) / cellSize;
-    // emit squareClickedOnScene(QPoint(col, row), QColor()); // Placeholder for color
+    QPointF scenePos = mapToScene(event->pos());
+    int col = static_cast<int>(scenePos.x()) / cellSize;
+    int row = static_cast<int>(scenePos.y()) / cellSize;
+    emit squareClickedOnScene(QPoint(col, row), QColor()); // Placeholder for color
 }
 
 void GraphicsViewBase::mouseMoveEvent(QMouseEvent *event) {
@@ -165,14 +165,14 @@ void GraphicsViewBase::resetGraphicsView() {
 }
 
 void GraphicsViewBase::onSquareClicked(const QPoint &pos, const QColor &color) {
-    // if (!clearButton) {
-    //     clearButton = new QPushButton("Clear", this);
-    //     clearButton->setGeometry(this->width() - clearButton->width() - 10, 10, 80, 40);
-    //     clearButton->setStyleSheet("background-color: white; color: white");
-    //     connect(clearButton, &QPushButton::clicked, this, &GraphicsViewBase::clearSelection);
-    //     clearButton->show();
-    // }
-    // emit squareClickedOnScene(pos, color);
+    if (!clearButton) {
+        clearButton = new QPushButton("Clear", this);
+        clearButton->setGeometry(this->width() - clearButton->width() - 10, 10, 80, 40);
+        clearButton->setStyleSheet("background-color: white; color: white");
+        connect(clearButton, &QPushButton::clicked, this, &GraphicsViewBase::clearSelection);
+        clearButton->show();
+    }
+    emit squareClickedOnScene(pos, color);
 }
 
 QImage GraphicsViewBase::createRasterImage(
@@ -219,17 +219,21 @@ QColor GraphicsViewBase::computeColorFromValue(
 }
 
 void GraphicsViewBase::setOverlayText(const QString& text) {
-    if (overlayLabel) {
-        overlayLabel->setText(text);
-        int margin = 10;
-        int labelWidth = overlayLabel->sizeHint().width();
-        int labelHeight = overlayLabel->sizeHint().height();
-        overlayLabel->setGeometry(margin, height() - margin - labelHeight, labelWidth, labelHeight);
-        overlayLabel->setWordWrap(true);
-        overlayLabel->setFixedWidth(250);  // or dynamic based on window
+    if (!overlayLabel) return;
 
-    }
+    overlayLabel->setWordWrap(true);
+    overlayLabel->setFixedWidth(500);
+    overlayLabel->setText(text);
+
+    // Calculate dynamic height
+    QFontMetrics fm(overlayLabel->font());
+    QRect textRect = fm.boundingRect(0, 0, overlayLabel->width(), 1000, Qt::TextWordWrap, text);
+    int labelHeight = textRect.height() + 20;
+
+    int margin = 10;
+    overlayLabel->setGeometry(margin, height() - margin - labelHeight, overlayLabel->width(), labelHeight);
 }
+
 
 
 

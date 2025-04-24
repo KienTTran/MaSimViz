@@ -18,7 +18,7 @@
 #include "preference.h"
 #include "loader.h"
 #include "vizdata.h"
-#include "graphicsviewcustom.h"
+#include "graphicsview.h"
 #include "glwidgetcustom.h"
 #include "dataprocessor.h"
 #include "chartcustom.h"
@@ -90,11 +90,13 @@ private:
     QStringList csvFileList;
     QString districtRasterPath;
     QGraphicsScene *scene;
+    QGraphicsScene *scene1;
     QGraphicsScene *scene2;
     VizData *vizData;
     DataProcessor *dataProcessor;
     ChartCustom *chart;
-    ChartCustom *chartFreq;
+    ChartCustom *chart1;
+    ChartCustom *chart2;
     ChatbotWithAPI *onlineChatbot;
     ChatbotWithModel *offlineChatbot;
     QTimer* playbackTimer = nullptr;
@@ -140,6 +142,11 @@ private:
     QTimer* redrawTimer;
     int pendingMonth = -1;
     bool chartInitialized = false;
+
+    QString wildTypeGenotype = "KNF--R1";
+    QColor normalColor = Qt::cyan;
+    QColor wildTypeColor = Qt::cyan;
+    QColor mutantColor = Qt::cyan;
 
 signals:
     void addClearButton(bool show);
