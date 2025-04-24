@@ -11,11 +11,11 @@
 GraphicsViewFreq::GraphicsViewFreq(QWidget *parent) {
     isPanning = false;
     lastMousePos = QPoint();
-    currentZoomLevel = 1.0;
-    currentZoomFactor = 1.0;
     cellSize = 30;
     vizData = new VizData();
-    squareItemList = QVector<QVector<SquareItem*>>();
+    squareItemList = QVector<QVector<SquareItem*>>();    
+    currentZoomLevel = 1.0;
+    currentZoomFactor = zoomFactor;
 
     setRenderHint(QPainter::Antialiasing, true);  // Optional: improve rendering quality
     setDragMode(QGraphicsView::NoDrag);  // Disable default drag mode
@@ -24,22 +24,6 @@ GraphicsViewFreq::GraphicsViewFreq(QWidget *parent) {
     setTransformationAnchor(QGraphicsView::AnchorUnderMouse);  // Ensure zooming anchors to the mouse position
     //Set background color to grey
     setBackgroundBrush(QBrush(QColor(0, 0, 0)));
-}
-
-void GraphicsViewFreq::mousePressEvent(QMouseEvent *event) {
-
-    qDebug() << "[GraphicsViewFreq] Mouse Pressed at:" << event->pos();
-
-    // if (event->button() == Qt::RightButton) {
-    //     isPanning = true;
-    //     lastMousePos = event->pos();
-    // }
-    // QGraphicsView::mousePressEvent(event);
-
-    // QPointF scenePos = mapToScene(event->pos());
-    // int col = static_cast<int>(scenePos.x()) / cellSize;
-    // int row = static_cast<int>(scenePos.y()) / cellSize;
-    // emit squareClickedOnScene(QPoint(col, row), QColor()); // Placeholder for color
 }
 
 // Function to display .asc data on QGraphicsView as dots
@@ -104,7 +88,9 @@ void GraphicsViewFreq::updateRasterDataPixmap(){
     scene()->addItem(pixmapItem);
 }
 
-void GraphicsViewFreq::updateRasterDataFreq(const QString& aa_sequence, int month, double threshold) {
+void GraphicsViewFreq::updateRasterDataFreq(const QString& aa_sequence, int month,
+                                            double thresholdMin,
+                                            double thresholdMax) {
     if (squareItemList.isEmpty()) {
         initSquareItems();
         initSquareScene();
@@ -121,13 +107,13 @@ void GraphicsViewFreq::updateRasterDataFreq(const QString& aa_sequence, int mont
 
         double freq = vizData->genotypeFreqMatrix[aa_sequence][month][loc];
 
-        if(threshold != 0.0 && freq < threshold){
-            squareItemList[col][row]->setBrushCustom(QBrush(QColor::fromRgbF(0.0,0.0,0.0)));
+        if((thresholdMin != 0.0 && freq < thresholdMin) || (thresholdMax != 0.0 && freq > thresholdMax)){
+            squareItemList[col][row]->setBrushCustom(QBrush(QColor::fromRgbF(0.1f, 0.1f, 0.1f)));
             continue;
         }
 
         // Normalize the value to range [0, 1] based on min and max values
-        float normalizedValue = (static_cast<float>(freq) - threshold) / (1.0 - threshold);
+        float normalizedValue = (static_cast<float>(freq) - thresholdMin) / (thresholdMax - thresholdMin);
 
         // Determine which color stop range this value falls into
         int nColorSteps = vizData->colorMap.size() - 1;
@@ -149,6 +135,14 @@ void GraphicsViewFreq::updateRasterDataFreq(const QString& aa_sequence, int mont
             squareItemList[col][row]->setBrushCustom(QBrush(newColor));
         }
     }
+
+
+    setOverlayText(QString("%1\nWildtype frequency: %2%\nArtermisinin-Lumenfantrine Resistance frequency: %3%\n")
+                       .arg(vizData->simStartDate.addMonths(month).toString("yyyy-MM-dd"))
+                       .arg(vizData->statsFrequencySummary["KNF--R1"].median[month], 0, 'f', 2)
+                       .arg(vizData->statsFrequencySummary["KNF--H1"].median[month], 0, 'f', 2));
+
+
     scene()->invalidate();
 }
 

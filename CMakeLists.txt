@@ -70,6 +70,7 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         chatbotwithapillamacpp.h chatbotwithapillamacpp.cpp
         graphicsviewfreq.h graphicsviewfreq.cpp
         graphicsviewbase.h graphicsviewbase.cpp
+        chartbase.h chartbase.cpp
     )
 
     qt_create_translation(QM_FILES ${CMAKE_SOURCE_DIR} ${TS_FILES})

@@ -56,14 +56,7 @@ MainWindow::MainWindow(QWidget *parent)
     redrawTimer = new QTimer(this);
     redrawTimer->setSingleShot(true);
 
-    QThreadPool::globalInstance()->setMaxThreadCount(4);
-
-    // Debounce rendering
-    connect(redrawTimer, &QTimer::timeout, this, [=]() {
-        currentMonth = pendingMonth;
-        ui->graphicsView->updateRasterDataMedian(currentColNameShown, currentMonth);
-        ui->graphicsView2->updateRasterDataFreq(currentGenotypeShown, currentMonth, currentFreqThreshold);
-    });
+    QThreadPool::globalInstance()->setMaxThreadCount(10);
 
 
     scene = new QGraphicsScene(this);
@@ -95,6 +88,10 @@ MainWindow::MainWindow(QWidget *parent)
     chart->setChartView(ui->gv_chartview);
     chart->setVizData(vizData);
 
+    chartFreq = new ChartCustom(this);
+    chartFreq->setChartView(ui->gv_chartview2);
+    chartFreq->setVizData(vizData);
+
     currentColNameShown = "";
     currentMonth = 0;
     currentLocationSelectedMap = QMap<QPair<int,int>,QColor>();
@@ -117,7 +114,16 @@ MainWindow::MainWindow(QWidget *parent)
     QObject::connect(this,&MainWindow::isAssisantReady, ui->wev_chatbox, &WebEngineViewCustom::isAssistantReady);
 
     playbackTimer = new QTimer(this);
-    playbackTimer->setInterval(50);
+    playbackTimer->setInterval(5);
+
+
+    // Debounce rendering
+    connect(redrawTimer, &QTimer::timeout, this, [=]() {
+        currentMonth = pendingMonth;
+        ui->graphicsView->updateRasterDataMedian(currentColNameShown, currentMonth);
+        ui->graphicsView2->updateRasterDataFreq(currentGenotypeShown, currentMonth, currentFreqThresholdMin, currentFreqThresholdMax);
+        showChart();
+    });
 
     QObject::connect(playbackTimer, &QTimer::timeout, this, [=]() {
         if (!isRunning) {
@@ -130,7 +136,8 @@ MainWindow::MainWindow(QWidget *parent)
         }
         ui->slider_progress->setValue(currentMonth); // Triggers all updates
         ui->graphicsView->updateRasterDataMedian(currentColNameShown,currentMonth);
-        ui->graphicsView2->updateRasterDataFreq(currentGenotypeShown,currentMonth,currentFreqThreshold);
+        ui->graphicsView2->updateRasterDataFreq(currentGenotypeShown,currentMonth,currentFreqThresholdMin, currentFreqThresholdMax);
+        showChart();
         ++currentMonth;
     });
 
@@ -599,35 +606,14 @@ void MainWindow::on_bt_process_clicked()
                                    int tableIndex = vizData->sqlData.dbTables.indexOf(tableName);
                                    QFile file(QDir(vizData->currentDirectory).filePath("MaSimViz_"+vizData->sqlData.tableColumnsMap.keys().last() + ".dat"));
                                    if(file.exists()){
+                                       qDebug() << "File exists, loading data from file";
                                        loadStatsData(tableName);
-                                       loadSummaryStatsData();
                                    }
                                    else{
                                        processAndSaveStatsData();
-                                       processAndSaveSummaryStatsData();
                                    }
                                }, Qt::QueuedConnection);
                            });
-
-        QFile file(QDir(vizData->currentDirectory).filePath("MaSimViz_freq.dat"));
-        if(file.exists()){
-            dataProcessor->loadGenotypeFrequenciesMatrixFromCSV(vizData,QDir(vizData->currentDirectory).filePath("MaSimViz_freq.dat"));
-        }
-        else{
-            vizData->genotypeFrequencies = dataProcessor->readGenotypeFrequencyFromDatabase(dbFileList[0]);
-            dataProcessor->saveGenotypeFrequenciesMatrixToCSV(
-                vizData->genotypeFrequencies,        // your raw frequency data
-                vizData->monthCountStartToEnd,       // TOTALMONTH
-                vizData->rasterData->nLocations,     // TOTALLOC
-                QDir(vizData->currentDirectory).filePath("MaSimViz_freq.dat")
-                );
-        }
-        dataProcessor->computeGenotypeFrequencyRange(vizData);
-        ui->wg_color_map_freq->setColorMapMinMax(QPair<double,double>(0.0,1.0));
-        ui->cb_genotype_list->clear();
-        ui->cb_genotype_list->addItems(vizData->genotypeNames);
-        resetMedianFreqMap();
-        updateMedianFreqMap();
     }
     else{
         QMessageBox::information(this, "Information", "Plese stop playing first!");
@@ -658,7 +644,7 @@ void MainWindow::on_slider_progress_valueChanged(int value)
 
     // Use your existing debounce timer for smooth updates
     pendingMonth = currentMonth;
-    redrawTimer->start(10);  // Only trigger real redraw every few ms
+    redrawTimer->start(5);  // Only trigger real redraw every few ms
 }
 
 
@@ -731,7 +717,6 @@ void MainWindow::resetMedianMap(){
     currentMonth = 0;
     currentLocationSelectedMap.clear();
     ui->graphicsView->resetGraphicsView();
-    ui->gv_chartview->setHidden(currentLocationSelectedMap.isEmpty());
     emit(addClearButton(!currentLocationSelectedMap.empty()));
 }
 
@@ -750,23 +735,51 @@ void MainWindow::updateMedianMap(){
     ui->wg_color_map_freq->setColorMapMinMax(QPair<double,double>(vizData->statsData[currentColNameShown].medianMin, vizData->statsData[currentColNameShown].medianMax));
     ui->graphicsView->updateRasterDataMedian(currentColNameShown, currentMonth);
     ui->graphicsView->update();
+    chartInitialized = false;
+    chart->plotSummaryData(vizData->statsDataSummary,
+                           QPair<double,double>(vizData->statsData[currentColNameShown].medianMin,
+                                                 vizData->statsData[currentColNameShown].medianMax),
+                           currentColNameShown, currentMonth,
+                           ui->cb_data_list->currentText());
+    chartInitialized = true;  // bool member variable
 }
 
 void MainWindow::updateMedianFreqMap(){
-    ui->graphicsView2->updateRasterDataFreq(currentGenotypeShown, currentMonth,currentFreqThreshold);
+    ui->graphicsView2->updateRasterDataFreq(currentGenotypeShown, currentMonth,currentFreqThresholdMin, currentFreqThresholdMax);
     ui->graphicsView2->update();
+    ui->wg_color_map_freq->setColorMapMinMax(QPair<double,double>(currentFreqThresholdMin, currentFreqThresholdMax));
+    chartInitialized = false;
+    chartFreq->plotSummaryData(vizData->statsFrequencySummary,
+                               QPair<double,double>(0.0,1.0),
+                               currentGenotypeShown, currentMonth,
+                               ui->cb_genotype_list->currentText());
+
+    chartInitialized = true;  // bool member variable
 }
 
 void MainWindow::showChart(){
-    ui->gv_chartview->setHidden(currentLocationSelectedMap.isEmpty());
-    if(ui->gv_chartview->isVisible()){
-        // chart->plotDataMedianMultipleLocations(currentColNameShown, currentLocationSelectedMap, currentMonth, ui->cb_data_list->currentText());
-        // chart->plotSummaryDataOnly(currentColNameShown, currentMonth, ui->cb_data_list->currentText());
+    if (!chartInitialized) {
+        chart->plotSummaryData(vizData->statsDataSummary,
+                               QPair<double,double>(vizData->statsData[currentColNameShown].medianMin,
+                                                     vizData->statsData[currentColNameShown].medianMax),
+                               currentColNameShown, currentMonth,
+                               ui->cb_data_list->currentText());
+
+        chartFreq->plotSummaryData(vizData->statsFrequencySummary,
+                                   QPair<double,double>(0.0,1.0),
+                                   currentGenotypeShown, currentMonth,
+                                   ui->cb_genotype_list->currentText());
+
+        chartInitialized = true;  // bool member variable
+    } else {
+        chart->updateVerticalLine(vizData->statsDataSummary,currentColNameShown,currentMonth);
+        chartFreq->updateVerticalLine(vizData->statsFrequencySummary,currentGenotypeShown,currentMonth);
     }
 }
 
 void MainWindow::hideMedianItems(){
-    ui->gv_chartview->setHidden(true);
+    // ui->gv_chartview->setHidden(true);
+    // ui->gv_chartview2->setHidden(true);
 }
 
 void MainWindow::showItemScreenNumber(int screenNumber){
@@ -779,7 +792,8 @@ void MainWindow::showItemScreenNumber(int screenNumber){
         ui->bt_run->setEnabled(false);
         ui->wg_color_map_freq->setHidden(false);
         ui->wg_color_map_freq->setHidden(false);
-        ui->gv_chartview->setHidden(true);
+        // ui->gv_chartview->setHidden(true);
+        // ui->gv_chartview2->setHidden(true);
         //Display only filenames in the combobox
         QStringList ascFileNameList;
         for(const QString &ascFilePath : ascFileList){
@@ -834,11 +848,7 @@ void MainWindow::saveStatsData(){
                                               qDebug() << "Saving IQR data to CSV complete!";
                                               ui->statusbar->showMessage("Saving IQR data to CSV complete!");
 
-                                              resetMedianMap();
-                                              updateMedianMap();
-                                              screenNumber = 1;
-                                              enableInputWidgets(screenNumber);
-                                              showItemScreenNumber(screenNumber);
+                                              processAndSaveSummaryStatsData();
                                           }, Qt::QueuedConnection);
                                       });
 }
@@ -910,11 +920,7 @@ void MainWindow::loadStatsData(QString tableName){
                                                     //     qDebug() << "[Load]Month 150 min loc 150: " << vizData->statsData[colName].medianMin;
                                                     //     qDebug() << "[Load]Month 150 max loc 150: " << vizData->statsData[colName].medianMax;
                                                     // }
-                                                    resetMedianMap();
-                                                    updateMedianMap();
-                                                    screenNumber = 1;
-                                                    enableInputWidgets(screenNumber);
-                                                    showItemScreenNumber(screenNumber);
+                                                    loadSummaryStatsData();
                                                 }
                                                 else {
                                                     //Create a dialog and ask if user want to generate new stats
@@ -947,12 +953,7 @@ void MainWindow::saveSummaryStatsData() {
                                                  QMetaObject::invokeMethod(this, [this]() {
                                                      qDebug() << "Saving Summary Stats to CSV complete!";
                                                      ui->statusbar->showMessage("Saving Summary Stats to CSV complete!");
-
-                                                     resetMedianMap();
-                                                     updateMedianMap();
-                                                     screenNumber = 1;
-                                                     enableInputWidgets(screenNumber);
-                                                     showItemScreenNumber(screenNumber);
+                                                     loadGenotypeFrequencyData();
                                                  }, Qt::QueuedConnection);
                                              });
 }
@@ -981,34 +982,87 @@ void MainWindow::loadSummaryStatsData() {
                                                    }, Qt::QueuedConnection);
                                                },
                                                [this](int readCode) {
-                                                   QMetaObject::invokeMethod(this, [this, readCode]() {
-                                                       if (readCode == 0) {
-                                                           qDebug() << "Loading Summary Stats from CSV complete!";
-                                                           ui->statusbar->showMessage("Loading Summary Stats from CSV complete!");
-                                                           // Optional: update visual charts or UI
-                                                           resetMedianMap();
-                                                           updateMedianMap();
-                                                           screenNumber = 1;
-                                                           enableInputWidgets(screenNumber);
-                                                           showItemScreenNumber(screenNumber);
-                                                       } else {
-                                                           QMessageBox::information(this, "Information", "Unable to load summary stats. Generate new?");
-                                                           QMessageBox msgBox;
-                                                           msgBox.setText("Do you want to generate new summary stats?");
-                                                           msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
-                                                           msgBox.setDefaultButton(QMessageBox::No);
-                                                           int ret = msgBox.exec();
-                                                           if (ret == QMessageBox::Yes) {
-                                                               processAndSaveSummaryStatsData();
-                                                           }
-                                                           else{
-                                                               qDebug() << screenNumber;
-                                                               enableInputWidgets(screenNumber);
-                                                           }
-                                                           return;
-                                                       }
+                                                   if(readCode == 0){
+                                                   QMetaObject::invokeMethod(this, [this]() {
+                                                       ui->statusbar->showMessage("Loading Summary Stats from CSV complete!");
                                                    }, Qt::QueuedConnection);
-                                               });
+                                                       /* use this only for monthlydata, comment genotype frequency */
+                                                       // ui->wg_color_map_freq->setColorMapMinMax(QPair<double,double>(0.0,1.0));
+                                                       // ui->cb_genotype_list->clear();
+                                                       // ui->cb_genotype_list->addItems(vizData->genotypeNames);
+                                                       // resetMedianMap();
+                                                       // updateMedianMap();
+                                                       // // resetMedianFreqMap();
+                                                       // // updateMedianFreqMap();
+                                                       // screenNumber = 1;
+                                                       // enableInputWidgets(screenNumber);
+                                                       // showItemScreenNumber(screenNumber);
+                                                   //Use below for genotype freq
+                                                    loadGenotypeFrequencyData();
+                                                   }
+    });
+}
+
+
+void MainWindow::loadGenotypeFrequencyData() {
+    QFile file(QDir(vizData->currentDirectory).filePath("MaSimViz_freq.dat"));
+    if(file.exists()){
+        dataProcessor->loadGenotypeFrequenciesMatrixFromCSV(vizData,
+                                                            QDir(vizData->currentDirectory).filePath("MaSimViz_freq.dat"),
+                                                            [this](int progress) {
+                                                                QMetaObject::invokeMethod(this, [this, progress]() {
+                                                                    ui->statusbar->showMessage("Loading Genotype Frequency data from CSV ... " + QString::number(progress) + "%");
+                                                                }, Qt::QueuedConnection);
+                                                            },
+                                                            [this](){
+                                                                dataProcessor->loadGenotypeSummaryFromCSV(vizData,
+                                                                                                          QDir(vizData->currentDirectory).filePath("MaSimViz_freq_summary.dat"),
+                                                                                                          [this](int progress) {
+                                                                                                              QMetaObject::invokeMethod(this, [this, progress]() {
+                                                                                                                  ui->statusbar->showMessage("Loading Genotype Frequency Summary data from CSV ... " + QString::number(progress) + "%");
+                                                                                                              }, Qt::QueuedConnection);
+                                                                                                          },
+                                                                                                          [this](){
+                                                                      QMetaObject::invokeMethod(this, [this]() {
+                                                                          ui->statusbar->showMessage("Loading Genotype Frequency Summary data from CSV complete!");
+                                                                      }, Qt::QueuedConnection);
+                                                                      ui->wg_color_map_freq->setColorMapMinMax(QPair<double,double>(0.0,1.0));
+                                                                      ui->cb_genotype_list->clear();
+                                                                      ui->cb_genotype_list->addItems(vizData->genotypeNames);
+                                                                      resetMedianMap();
+                                                                      updateMedianMap();
+                                                                      resetMedianFreqMap();
+                                                                      updateMedianFreqMap();
+                                                                      screenNumber = 1;
+                                                                      enableInputWidgets(screenNumber);
+                                                                      showItemScreenNumber(screenNumber);
+            });
+
+        });
+    }
+    else{
+        vizData->genotypeFrequencies = dataProcessor->readGenotypeFrequencyFromDatabase(dbFileList[0],
+                                                                                        [this](int progress) {},
+                                                                                        [this](){});
+        dataProcessor->saveGenotypeFrequenciesMatrixToCSV(
+            vizData->genotypeFrequencies,        // your raw frequency data
+            vizData->monthCountStartToEnd,       // TOTALMONTH
+            vizData->rasterData->nLocations,     // TOTALLOC
+            QDir(vizData->currentDirectory).filePath("MaSimViz_freq.dat"),
+            [this](int progress) {},
+            [this](){
+                ui->wg_color_map_freq->setColorMapMinMax(QPair<double,double>(0.0,1.0));
+                ui->cb_genotype_list->clear();
+                ui->cb_genotype_list->addItems(vizData->genotypeNames);
+                resetMedianMap();
+                updateMedianMap();
+                resetMedianFreqMap();
+                updateMedianFreqMap();
+                screenNumber = 1;
+                enableInputWidgets(screenNumber);
+                showItemScreenNumber(screenNumber);
+            });
+    }
 }
 
 
@@ -1280,11 +1334,18 @@ void MainWindow::on_chb_assist_clicked(bool checked)
     }
 }
 
-void MainWindow::on_sb_freq_threshold_valueChanged(double value)
+void MainWindow::on_sb_freq_min_valueChanged(double value)
 {
-    currentFreqThreshold = value;
-    qDebug() << "Threshold changed to:" << currentFreqThreshold;
-    ui->wg_color_map_freq->setColorMapMinMax(QPair<double,double>(currentFreqThreshold,1.0));
-    ui->graphicsView2->updateRasterDataFreq(currentGenotypeShown, currentMonth,currentFreqThreshold);
+    currentFreqThresholdMin = value;
+    ui->wg_color_map_freq->setColorMapMinMax(QPair<double,double>(currentFreqThresholdMin,currentFreqThresholdMax));
+    ui->graphicsView2->updateRasterDataFreq(currentGenotypeShown, currentMonth,currentFreqThresholdMin, currentFreqThresholdMax);
+}
+
+
+void MainWindow::on_sb_freq_max_valueChanged(double value)
+{
+    currentFreqThresholdMax = value;
+    ui->wg_color_map_freq->setColorMapMinMax(QPair<double,double>(currentFreqThresholdMin,currentFreqThresholdMax));
+    ui->graphicsView2->updateRasterDataFreq(currentGenotypeShown, currentMonth,currentFreqThresholdMin, currentFreqThresholdMax);
 }
 

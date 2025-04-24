@@ -1,41 +1,23 @@
+// In chartcustom.h
 #ifndef CHARTCUSTOM_H
 #define CHARTCUSTOM_H
 
 #include <QObject>
-
 #include <QChartView>
 #include <QtCharts/QChart>
 #include <QtCharts/QChartView>
 #include <QtCharts/QLineSeries>
 #include <QtCharts/QValueAxis>
+#include <QtCharts/QCategoryAxis>
 
 #include "vizdata.h"
+#include "chartbase.h"
 
-class ChartCustom : public QObject
+class ChartCustom : public ChartBase
 {
     Q_OBJECT
 public:
     explicit ChartCustom(QObject *parent = nullptr);
-
-private:
-    VizData *vizData;
-    QChart *chart;
-    QGraphicsLineItem *verticalLine = nullptr;
-    QList<QGraphicsSimpleTextItem*> valueLabels;
-    QChartView *chartView;
-
-public:
-    void setChartView(QChartView* chartView);
-    void setVizData(VizData *vizData);
-public slots:
-    void plotDataMedianMultipleLocations(QString colName, QMap<QPair<int,int>,QColor> locInfo, int currentMonth, QString title);
-    void plotSummaryDataOnly(const QString& colName, int currentMonth, const QString& title);
-    void plotGenotypeFrequencyChart(QChartView* chartView,
-                                                 const QList<VizData::GenotypeFrequency>& data,
-                                                 double minFreq,
-                                                 double maxFreq);
-signals:
-    void valueAtVerticalLineChanged(double value);
 };
 
 #endif // CHARTCUSTOM_H

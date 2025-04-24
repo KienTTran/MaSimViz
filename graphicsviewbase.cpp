@@ -10,6 +10,13 @@ GraphicsViewBase::GraphicsViewBase(QWidget *parent) : QGraphicsView(parent) {
     setViewportUpdateMode(QGraphicsView::FullViewportUpdate);
     setTransformationAnchor(QGraphicsView::AnchorUnderMouse);
     setBackgroundBrush(QBrush(QColor(0, 0, 0)));
+
+    overlayLabel = new QLabel("Text Overlay", this);
+    overlayLabel->setStyleSheet("color: white; background-color: rgba(0, 0, 0, 128); padding: 4px;");
+    overlayLabel->setFont(QFont("Arial", 14, QFont::Bold));
+    overlayLabel->move(10, height() - 30); // Start at bottom-left
+    overlayLabel->show();
+
 }
 
 void GraphicsViewBase::setVizData(VizData *vizData) {
@@ -56,32 +63,43 @@ void GraphicsViewBase::initSquareItems() {
 
 
 void GraphicsViewBase::initSquareScene() {
-    scene()->clear();
-    scene()->setBackgroundBrush(Qt::black);
-    initSquareItems();
-    scene()->update();
+    //set camera to center and zoom out a bit
+    currentZoomLevel = 1.0;
+    fitInView(scene()->sceneRect(), Qt::KeepAspectRatio);
     centerOn(scene()->sceneRect().center());
-    scale(0.35, 0.35);
+    ensureVisible(scene()->sceneRect());
+    scene()->update();
+    qDebug() << "Init square scene";
 }
 
 void GraphicsViewBase::resizeEvent(QResizeEvent *event) {
     if (clearButton) {
         clearButton->setGeometry(this->width() - clearButton->width() - 10, 10, 80, 40);
     }
+    fitInView(scene()->sceneRect(), Qt::KeepAspectRatio);
+    centerOn(scene()->sceneRect().center());
+    ensureVisible(scene()->sceneRect());
+    scene()->update();
+
+    // Update text position
+    if (overlayLabel) {
+        overlayLabel->move(10, height() - overlayLabel->height() - 10); // Bottom-left
+    }
+
     QGraphicsView::resizeEvent(event);
 }
 
 void GraphicsViewBase::mousePressEvent(QMouseEvent *event) {
-    if (event->button() == Qt::RightButton) {
+    if (event->button() == Qt::LeftButton) {
         isPanning = true;
         lastMousePos = event->pos();
     }
     QGraphicsView::mousePressEvent(event);
 
-    QPointF scenePos = mapToScene(event->pos());
-    int col = static_cast<int>(scenePos.x()) / cellSize;
-    int row = static_cast<int>(scenePos.y()) / cellSize;
-    emit squareClickedOnScene(QPoint(col, row), QColor()); // Placeholder for color
+    // QPointF scenePos = mapToScene(event->pos());
+    // int col = static_cast<int>(scenePos.x()) / cellSize;
+    // int row = static_cast<int>(scenePos.y()) / cellSize;
+    // emit squareClickedOnScene(QPoint(col, row), QColor()); // Placeholder for color
 }
 
 void GraphicsViewBase::mouseMoveEvent(QMouseEvent *event) {
@@ -95,7 +113,7 @@ void GraphicsViewBase::mouseMoveEvent(QMouseEvent *event) {
 }
 
 void GraphicsViewBase::mouseReleaseEvent(QMouseEvent *event) {
-    if (event->button() == Qt::RightButton) {
+    if (event->button() == Qt::LeftButton) {
         isPanning = false;
         setCursor(Qt::ArrowCursor);
     }
@@ -106,15 +124,20 @@ void GraphicsViewBase::wheelEvent(QWheelEvent *event) {
     if (event->modifiers() & Qt::ControlModifier) {
         QGraphicsView::wheelEvent(event);
     } else {
-        const double zoomFactor = 1.05;
-        const int maxZoomLevel = 500;
-        const int minZoomLevel = -500;
-        if (event->angleDelta().y() > 0 && currentZoomLevel < maxZoomLevel) {
-            currentZoomLevel++;
-            scale(zoomFactor, zoomFactor);
-        } else if (event->angleDelta().y() < 0 && currentZoomLevel > minZoomLevel) {
-            currentZoomLevel--;
-            scale(1.0 / zoomFactor, 1.0 / zoomFactor);
+
+        isPanning = false;  // Disable panning while zooming
+        if (event->angleDelta().y() > 0) {
+            // Zoom in
+            if (currentZoomLevel < maxZoomLevel) {
+                currentZoomLevel++;
+                scale(currentZoomFactor, currentZoomFactor);
+            }
+        } else {
+            // Zoom out
+            if (currentZoomLevel > minZoomLevel) {
+                currentZoomLevel--;
+                scale(1.0 / currentZoomFactor, 1.0 / currentZoomFactor);
+            }
         }
     }
 }
@@ -142,14 +165,14 @@ void GraphicsViewBase::resetGraphicsView() {
 }
 
 void GraphicsViewBase::onSquareClicked(const QPoint &pos, const QColor &color) {
-    if (!clearButton) {
-        clearButton = new QPushButton("Clear", this);
-        clearButton->setGeometry(this->width() - clearButton->width() - 10, 10, 80, 40);
-        clearButton->setStyleSheet("background-color: white; color: white");
-        connect(clearButton, &QPushButton::clicked, this, &GraphicsViewBase::clearSelection);
-        clearButton->show();
-    }
-    emit squareClickedOnScene(pos, color);
+    // if (!clearButton) {
+    //     clearButton = new QPushButton("Clear", this);
+    //     clearButton->setGeometry(this->width() - clearButton->width() - 10, 10, 80, 40);
+    //     clearButton->setStyleSheet("background-color: white; color: white");
+    //     connect(clearButton, &QPushButton::clicked, this, &GraphicsViewBase::clearSelection);
+    //     clearButton->show();
+    // }
+    // emit squareClickedOnScene(pos, color);
 }
 
 QImage GraphicsViewBase::createRasterImage(
@@ -194,6 +217,21 @@ QColor GraphicsViewBase::computeColorFromValue(
     QVector3D colorVec = interpolate(lowerStep, factor);
     return QColor::fromRgbF(colorVec.x(), colorVec.y(), colorVec.z());
 }
+
+void GraphicsViewBase::setOverlayText(const QString& text) {
+    if (overlayLabel) {
+        overlayLabel->setText(text);
+        int margin = 10;
+        int labelWidth = overlayLabel->sizeHint().width();
+        int labelHeight = overlayLabel->sizeHint().height();
+        overlayLabel->setGeometry(margin, height() - margin - labelHeight, labelWidth, labelHeight);
+        overlayLabel->setWordWrap(true);
+        overlayLabel->setFixedWidth(250);  // or dynamic based on window
+
+    }
+}
+
+
 
 
 

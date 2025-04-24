@@ -67,18 +67,31 @@
            <widget class="QComboBox" name="cb_genotype_list"/>
           </item>
           <item>
-           <widget class="QDoubleSpinBox" name="sb_freq_threshold">
+           <widget class="QDoubleSpinBox" name="sb_freq_min">
             <property name="decimals">
-             <number>3</number>
+             <number>2</number>
             </property>
             <property name="minimum">
              <double>0.000000000000000</double>
             </property>
             <property name="maximum">
-             <double>0.990000000000000</double>
+             <double>1.000000000000000</double>
             </property>
             <property name="singleStep">
-             <double>0.001000000000000</double>
+             <double>0.010000000000000</double>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QDoubleSpinBox" name="sb_freq_max">
+            <property name="maximum">
+             <double>1.000000000000000</double>
+            </property>
+            <property name="singleStep">
+             <double>0.010000000000000</double>
+            </property>
+            <property name="value">
+             <double>1.000000000000000</double>
             </property>
            </widget>
           </item>
@@ -179,7 +192,7 @@
              </layout>
             </item>
             <item row="1" column="0">
-             <layout class="QHBoxLayout" name="horizontalLayout_8" stretch="3,0">
+             <layout class="QHBoxLayout" name="horizontalLayout_8" stretch="5,5,0">
               <item>
                <widget class="QChartView" name="gv_chartview">
                 <property name="minimumSize">
@@ -187,6 +200,28 @@
                   <width>0</width>
                   <height>240</height>
                  </size>
+                </property>
+                <property name="frameShape">
+                 <enum>QFrame::Shape::NoFrame</enum>
+                </property>
+                <property name="frameShadow">
+                 <enum>QFrame::Shadow::Plain</enum>
+                </property>
+                <property name="interactive">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QChartView" name="gv_chartview2">
+                <property name="frameShape">
+                 <enum>QFrame::Shape::NoFrame</enum>
+                </property>
+                <property name="frameShadow">
+                 <enum>QFrame::Shadow::Plain</enum>
+                </property>
+                <property name="interactive">
+                 <bool>false</bool>
                 </property>
                </widget>
               </item>
@@ -196,15 +231,23 @@
              </layout>
             </item>
             <item row="2" column="0">
-             <layout class="QHBoxLayout" name="horizontalLayout_2" stretch="0,0">
+             <layout class="QHBoxLayout" name="horizontalLayout_2" stretch="5,5">
               <item>
-               <widget class="ColorMapWidget" name="wg_color_map" native="true">
-                <layout class="QGridLayout" name="gridLayout_8"/>
+               <widget class="ColorMapWidget" name="wg_color_map_freq" native="true">
+                <layout class="QGridLayout" name="gridLayout_6">
+                 <property name="sizeConstraint">
+                  <enum>QLayout::SizeConstraint::SetDefaultConstraint</enum>
+                 </property>
+                </layout>
                </widget>
               </item>
               <item>
-               <widget class="ColorMapWidget" name="wg_color_map_freq" native="true">
-                <layout class="QGridLayout" name="gridLayout_6"/>
+               <widget class="ColorMapWidget" name="wg_color_map" native="true">
+                <layout class="QGridLayout" name="gridLayout_8">
+                 <property name="sizeConstraint">
+                  <enum>QLayout::SizeConstraint::SetDefaultConstraint</enum>
+                 </property>
+                </layout>
                </widget>
               </item>
              </layout>

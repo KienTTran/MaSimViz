@@ -71,7 +71,9 @@ private slots:
 
     void on_cb_genotype_list_currentTextChanged(const QString &arg1);
 
-    void on_sb_freq_threshold_valueChanged(double arg1);
+    void on_sb_freq_max_valueChanged(double arg1);
+
+    void on_sb_freq_min_valueChanged(double arg1);
 
 public slots:
     void onSquareClicked(const QPoint &pos, const QColor &color);
@@ -92,6 +94,7 @@ private:
     VizData *vizData;
     DataProcessor *dataProcessor;
     ChartCustom *chart;
+    ChartCustom *chartFreq;
     ChatbotWithAPI *onlineChatbot;
     ChatbotWithModel *offlineChatbot;
     QTimer* playbackTimer = nullptr;
@@ -118,6 +121,7 @@ private:
     void saveSummaryStatsData();
     void processAndSaveSummaryStatsData();
     void loadSummaryStatsData();
+    void loadGenotypeFrequencyData();
     void showItemScreenNumber(int screenNumber);
     QString getAPIKeyOrFile(const QString &apiKeyOrFile);
     void showQuickWindow();
@@ -128,12 +132,14 @@ private:
     int currentMonth = 0;
     QString currentColNameShown = "";
     QString currentGenotypeShown = "";
-    double currentFreqThreshold = 0.001;
+    double currentFreqThresholdMin = 0.0;
+    double currentFreqThresholdMax = 1.0;
     QMap<QPair<int,int>,QColor> currentLocationSelectedMap;
     QMap<QString,QString> cbItemPathMap;
     int screenNumber = 0;
     QTimer* redrawTimer;
     int pendingMonth = -1;
+    bool chartInitialized = false;
 
 signals:
     void addClearButton(bool show);

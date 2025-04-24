@@ -40,15 +40,15 @@ void SquareItem::setBrushCustom(QBrush brush){
 void SquareItem::mousePressEvent(QGraphicsSceneMouseEvent *event){
     // qDebug() << "Square clicked at position:" << event->scenePos() << "Col/Row:" << squareColRow;
 
-    if(event->button() == Qt::LeftButton){
-        isSelected = !isSelected;  // Toggle the selection state
+    // if(event->button() == Qt::LeftButton){
+    //     isSelected = !isSelected;  // Toggle the selection state
 
-        setSelection(isSelected);  // Update the visual appearance
+    //     setSelection(isSelected);  // Update the visual appearance
 
-        qDebug() << "[Square] select at:" << squareColRow << "color: " << selectedColor;
+    //     qDebug() << "[Square] select at:" << squareColRow << "color: " << selectedColor;
 
-        emit squareClicked(squareColRow,selectedColor);  // Emit signal with the column and row
-    }
+    //     emit squareClicked(squareColRow,selectedColor);  // Emit signal with the column and row
+    // }
 
     QGraphicsRectItem::mousePressEvent(event);  // Call base class to keep default behavior
 }

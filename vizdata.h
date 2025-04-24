@@ -65,7 +65,7 @@ public:
     QMap<QString, QVector<double>> genotypeMax;  // genotype -> vector of [loc] = sum
     QStringList genotypeNames;
 
-
+    QMap<QString, StatsDataSummary> statsFrequencySummary;
 
     struct SQLData{
         QList<QString> dbPaths;

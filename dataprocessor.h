@@ -21,15 +21,24 @@ public:
     void saveAllValuesSummaryToCSV(VizData* vizData, std::function<void(int)> progressCallback, std::function<void()> completionCallback);
     void loadAllValuesSummaryFromCSV(VizData* vizData, std::function<void(int)> progressCallback, std::function<void(int)> completionCallback);
 
-    QList<VizData::GenotypeFrequency> readGenotypeFrequencyFromDatabase(const QString& dbPath);
-
+    QList<VizData::GenotypeFrequency> readGenotypeFrequencyFromDatabase(const QString& dbPath,
+                                                                        std::function<void(int)> progressCallback, std::function<void()> completionCallback);
     void saveGenotypeFrequenciesMatrixToCSV(const QList<VizData::GenotypeFrequency>& data,
                                             int totalMonths,
                                             int totalLocations,
-                                            const QString& filePath);
-    void loadGenotypeFrequenciesMatrixFromCSV(VizData* vizData, const QString& filePath);
-    void computeGenotypeFrequencyRange(VizData* vizData);
-    void sortGenotypeNames(VizData* vizData);
+                                            const QString& filePath,
+                                            std::function<void(int)> progressCallback, std::function<void()> completionCallback);
+    void loadGenotypeFrequenciesMatrixFromCSV(VizData* vizData, const QString& filePath,
+std::function<void(int)> progressCallback, std::function<void()> completionCallback);
+    void computeGenotypeFrequencyRange(VizData* vizData,
+                                       std::function<void(int)> progressCallback, std::function<void()> completionCallback);
+    void sortGenotypeNames(VizData* vizData,
+                           std::function<void(int)> progressCallback, std::function<void()> completionCallback);
+
+
+    void loadGenotypeSummaryFromCSV(VizData* vizData, const QString& filePath,
+std::function<void(int)> progressCallback, std::function<void()> completionCallback);
+
 };
 
 #endif // DATAPROCESSOR_H

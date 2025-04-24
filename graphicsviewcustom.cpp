@@ -11,11 +11,11 @@
 GraphicsViewCustom::GraphicsViewCustom(QWidget *parent) {
     isPanning = false;
     lastMousePos = QPoint();
-    currentZoomLevel = 1.0;
-    currentZoomFactor = 1.0;
     cellSize = 30;
     vizData = new VizData();
     squareItemList = QVector<QVector<SquareItem*>>();
+    currentZoomLevel = 1.0;
+    currentZoomFactor = zoomFactor;
 
     setRenderHint(QPainter::Antialiasing, true);  // Optional: improve rendering quality
     setDragMode(QGraphicsView::NoDrag);  // Disable default drag mode
@@ -88,7 +88,6 @@ void GraphicsViewCustom::updateRasterDataPixmap(){
 }
 
 void GraphicsViewCustom::updateRasterDataMedian(const QString colName, int month) {
-
     if(squareItemList.isEmpty()){
         initSquareItems();
         initSquareScene();
@@ -105,12 +104,20 @@ void GraphicsViewCustom::updateRasterDataMedian(const QString colName, int month
     for(int loc = 0; loc < vizData->rasterData->nLocations; loc++){
         row = vizData->rasterData->locationPair1DTo2D[loc].first;
         col = vizData->rasterData->locationPair1DTo2D[loc].second;
+
+        // Prevent crash from out-of-range
+        if (month < 0 || month >= vizData->monthCountStartToEnd || loc < 0 || loc >= vizData->rasterData->nLocations) {
+            qWarning() << "[updateRasterDataMedian] Out of bounds: month=" << month << " loc=" << loc;
+            continue;
+        }
+
+
         if(vizData->isDistrictReporter){
             int dictrictLoc = vizData->rasterData->locationPair2DTo1DDistrict[QPair<int,int>(row,col)];
-            value = vizData->statsData[colName].iqr[0][month][dictrictLoc];
+            value = vizData->statsData[colName].iqr[1][month][dictrictLoc];
         }
         else{
-            value = vizData->statsData[colName].iqr[0][month][loc];
+            value = vizData->statsData[colName].iqr[1][month][loc];
         }
 
         // Normalize the value to range [0, 1] based on min and max values
@@ -138,6 +145,12 @@ void GraphicsViewCustom::updateRasterDataMedian(const QString colName, int month
         }
 
     }
+
+    setOverlayText(QString("%1\nPrevalence 2-10: %2%")
+                       .arg(vizData->simStartDate.addMonths(month).toString("yyyy-MM-dd"))
+                       .arg(vizData->statsDataSummary[colName].median[month], 0, 'f', 2));
+
+
     scene()->invalidate();
 }
 

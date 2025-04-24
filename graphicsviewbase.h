@@ -11,6 +11,7 @@
 #include <QVector>
 #include <QPoint>
 #include <QColor>
+#include <QLabel> // Add this at the top
 #include "squareitem.h"
 #include "vizdata.h"
 
@@ -39,16 +40,25 @@ protected:
     void mouseReleaseEvent(QMouseEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
     QImage createRasterImage(int width, int height, std::function<QColor(int row, int col)> colorFunc);
-    QColor computeColorFromValue(float value, float minVal, float maxVal, const QVector<QVector3D>& colorMap, std::function<QVector3D(int, float)> interpolate);
+    QColor computeColorFromValue(float value, float minVal, float maxVal, const QVector<QVector3D>& colorMap,
+                                 std::function<QVector3D(int, float)> interpolate);
+    void setOverlayText(const QString& text);
 
     VizData *vizData = nullptr;
     QVector<QVector<SquareItem*>> squareItemList;
     QPushButton *clearButton = nullptr;
-    bool isPanning = false;
-    QPoint lastMousePos;
-    int currentZoomLevel = 0;
-    double currentZoomFactor = 1.0;
-    int cellSize = 3;
+    bool isPanning;  // Flag to track whether panning is active
+    QPoint lastMousePos;  // Last recorded mouse position
+    int currentZoomLevel;  // Current zoom level to limit zooming range
+    double currentZoomFactor;  // Current zoom factor to adjust the view
+    const double zoomFactor = 1.05;  // Smaller zoom factor for smooth zoom
+    const int maxZoomLevel = 500;  // Maximum zoom level
+    const int minZoomLevel = 0;  // Minimum zoom level
+    int cellSize = 30;  // Size of each square cell
+
+    QLabel* overlayLabel = nullptr;
+
+
 
     QGraphicsPixmapItem* pixmapItem = nullptr;
 
